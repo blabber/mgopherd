@@ -108,7 +108,8 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	free(dir);
 }
 
-static char *joinpath(const char *part1, const char *part2)
+static char *
+joinpath(const char *part1, const char *part2)
 {
 	assert(part1 != NULL);
 	assert(part2 != NULL);
