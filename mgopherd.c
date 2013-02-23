@@ -21,12 +21,14 @@
 
 #include "options.h"
 
-#define IT_FILE '0'
-#define IT_DIR  '1'
+#define IT_UNKNOWN	'?'
+#define IT_FILE		'0'
+#define IT_DIR		'1'
 
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
 static char *joinpath(const char *part1, const char *part2);
+static char itemtype(const char *path);
 
 int
 main(int argc, char **argv)
@@ -73,28 +75,20 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 
 	struct dirent *de;
 	while ((de = readdir(dh)) != NULL) {
-		if (de->d_name[0] == '.')
+		char *item = de->d_name;
+		if (item[0] == '.')
 			continue;
 
-		char *item = de->d_name;
 		char *path = joinpath(dir, de->d_name);
-		char *sel = joinpath(selector, item);
-		char *host = opt_get_host(options);
-		char *port = opt_get_port(options);
-
-		struct stat s;
-		if (stat(path, &s) == -1) {
-			fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
+		char type = itemtype(path);
+		if (type == '?') {
+			free(path);
 			continue;
 		}
 
-		char type;
-		if (S_ISREG(s.st_mode))
-			type = IT_FILE;
-		else if (S_ISDIR(s.st_mode))
-			type = IT_DIR;
-		else
-			continue;
+		char *sel = joinpath(selector, item);
+		char *host = opt_get_host(options);
+		char *port = opt_get_port(options);
 
 		fprintf(out, "%c%s\t%s\t%s\t%s\r\n", type, item, sel, host,
 		    port);
@@ -139,4 +133,24 @@ joinpath(const char *part1, const char *part2)
 	}
 
 	return (joined);
+}
+
+static char
+itemtype(const char *path)
+{
+	assert(path != NULL);
+
+	struct stat s;
+	if (stat(path, &s) == -1)
+		fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
+
+	char it;
+	if (S_ISREG(s.st_mode))
+		it = IT_FILE;
+	else if (S_ISDIR(s.st_mode))
+		it = IT_DIR;
+	else
+		it = IT_UNKNOWN;;
+
+	return (it);
 }
