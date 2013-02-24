@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <magic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -24,6 +25,7 @@
 #define IT_UNKNOWN	'?'
 #define IT_FILE		'0'
 #define IT_DIR		'1'
+#define IT_BINARY	'9'
 
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
@@ -58,6 +60,7 @@ main(int argc, char **argv)
 
 	switch (itemtype(path)){
 	case IT_FILE:
+	case IT_BINARY:
 		fputs("\r\n== Not implemented yet. ==\r\n.\r", stdout);
 		break;
 	case IT_DIR:
@@ -158,9 +161,31 @@ itemtype(const char *path)
 		fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
 
 	char it;
-	if (S_ISREG(s.st_mode))
-		it = IT_FILE;
-	else if (S_ISDIR(s.st_mode))
+	if (S_ISREG(s.st_mode)) {
+		magic_t mh = magic_open(MAGIC_MIME_TYPE);
+		if (mh == NULL) {
+			fprintf(stderr, "magic_open: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+
+		if (magic_load(mh, NULL) == -1) {
+			fprintf(stderr, "magic_load: %s\n", magic_error(mh));
+			exit(EXIT_FAILURE);
+		}
+
+		const char *mime = magic_file(mh, path);
+		if (mime == NULL) {
+			fprintf(stderr, "magic_file: %s\n", magic_error(mh));
+			exit(EXIT_FAILURE);
+		}
+
+		if (strncmp(mime, "text/", 5) == 0)
+			it = IT_FILE;
+		else
+			it = IT_BINARY;
+
+		magic_close(mh);
+	} else if (S_ISDIR(s.st_mode))
 		it = IT_DIR;
 	else
 		it = IT_UNKNOWN;;
