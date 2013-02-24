@@ -54,8 +54,21 @@ main(int argc, char **argv)
 		 */
 		*p = '\0';
 
-	writemenu(options, request, stdout);
+	char *path = joinpath(opt_get_root(options), request);
 
+	switch (itemtype(path)){
+	case IT_FILE:
+		fputs("\r\n== Not implemented yet. ==\r\n.\r", stdout);
+		break;
+	case IT_DIR:
+		writemenu(options, request, stdout);
+		break;
+	case IT_UNKNOWN:
+	default:
+		fprintf(stderr, "unknown itemtype: %s\n", request);
+	}
+
+	free(path);
 	opt_free(options);
 }
 
