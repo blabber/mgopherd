@@ -2,6 +2,7 @@ PROG=	mgopherd
 
 SRCS+=	${PROG}.c
 SRCS+=	options.c
+SRCS+=	tools.c
 LDADD+=	-lmagic
 
 WARNS?=	6

@@ -14,13 +14,13 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
-#include <magic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 
 #include "options.h"
+#include "tools.h"
 
 #define IT_UNKNOWN	'?'
 #define IT_FILE		'0'
@@ -29,9 +29,7 @@
 
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
-static char *joinpath(const char *part1, const char *part2);
 static char itemtype(const char *path);
-static const char *mimetype(const char *path);
 
 int
 main(int argc, char **argv)
@@ -57,7 +55,7 @@ main(int argc, char **argv)
 		 */
 		*p = '\0';
 
-	char *path = joinpath(opt_get_root(options), request);
+	char *path = tool_joinpath(opt_get_root(options), request);
 
 	switch (itemtype(path)){
 	case IT_FILE:
@@ -83,7 +81,7 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	assert(selector != NULL);
 	assert(out != NULL);
 
-	char *dir = joinpath(opt_get_root(options), selector);
+	char *dir = tool_joinpath(opt_get_root(options), selector);
 	DIR *dh = opendir(dir);
 	if (dh == NULL) {
 		fprintf(stderr, "opendir %s: %s\n", dir, strerror(errno));
@@ -96,14 +94,14 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 		if (item[0] == '.')
 			continue;
 
-		char *path = joinpath(dir, de->d_name);
+		char *path = tool_joinpath(dir, de->d_name);
 		char type = itemtype(path);
 		if (type == '?') {
 			free(path);
 			continue;
 		}
 
-		char *sel = joinpath(selector, item);
+		char *sel = tool_joinpath(selector, item);
 		char *host = opt_get_host(options);
 		char *port = opt_get_port(options);
 
@@ -119,39 +117,6 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	free(dir);
 }
 
-static char *
-joinpath(const char *part1, const char *part2)
-{
-	assert(part1 != NULL);
-	assert(part2 != NULL);
-
-	char *joined = malloc(PATH_MAX);
-	if (joined == NULL) {
-		fprintf(stderr, "malloc joined: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	char *pj = stpncpy(joined, part1, PATH_MAX);
-	if ((pj > joined) && (*(pj-1) != '/')) {
-		*pj++ = '/';
-		*pj = '\0';
-	}
-	
-	size_t rl = PATH_MAX - (pj - joined);
-
-	const char *p2 = part2;
-	if (*p2 == '/')
-		p2++;
-	pj = stpncpy(pj, p2, rl);
-
-	if (joined[PATH_MAX-1] != '\0') {
-		fputs("joinpath: joined too long\n", stderr);
-		exit(EXIT_FAILURE);
-	}
-
-	return (joined);
-}
-
 static char
 itemtype(const char *path)
 {
@@ -165,42 +130,19 @@ itemtype(const char *path)
 
 	char it;
 	if (S_ISREG(s.st_mode)) {
-		const char *mime = mimetype(path);
+		char *mime = tool_mimetype(path);
+		assert(mime != NULL);
+
 		if (strncmp(mime, "text/", 5) == 0)
 			it = IT_FILE;
 		else
 			it = IT_BINARY;
+
+		free(mime);
 	} else if (S_ISDIR(s.st_mode))
 		it = IT_DIR;
 	else
 		it = IT_UNKNOWN;;
 
 	return (it);
-}
-
-static const char *
-mimetype(const char *path)
-{
-	assert(path != NULL);
-
-	magic_t mh = magic_open(MAGIC_MIME_TYPE);
-	if (mh == NULL) {
-		fprintf(stderr, "magic_open: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	if (magic_load(mh, NULL) == -1) {
-		fprintf(stderr, "magic_load: %s\n", magic_error(mh));
-		exit(EXIT_FAILURE);
-	}
-
-	const char *mime = magic_file(mh, path);
-	if (mime == NULL) {
-		fprintf(stderr, "magic_file: %s\n", magic_error(mh));
-		exit(EXIT_FAILURE);
-	}
-
-	magic_close(mh);
-
-	return (mime);
 }
