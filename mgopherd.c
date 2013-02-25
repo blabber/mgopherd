@@ -61,7 +61,7 @@ main(int argc, char **argv)
 	switch (itemtype(path)){
 	case IT_FILE:
 	case IT_BINARY:
-		fputs("\r\n== Not implemented yet. ==\r\n.\r", stdout);
+		fputs("\r\n== Not implemented yet. ==\r\n.\r\n", stdout);
 		break;
 	case IT_DIR:
 		writemenu(options, request, stdout);
@@ -112,7 +112,7 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 		free(sel);
 		free(path);
 	}
-	fputs(".\r", out);
+	fputs(".\r\n", out);
 
 	closedir(dh);
 	free(dir);
@@ -144,7 +144,7 @@ joinpath(const char *part1, const char *part2)
 	pj = stpncpy(pj, p2, rl);
 
 	if (joined[PATH_MAX-1] != '\0') {
-		fputs("joinpath: joined too long", stderr);
+		fputs("joinpath: joined too long\n", stderr);
 		exit(EXIT_FAILURE);
 	}
 

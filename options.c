@@ -153,5 +153,5 @@ opt_get_port(struct opt_options *options)
 void usage(void)
 {
 	fputs("Usage: mgopherd -r root -H host -p port\n", stderr);
-	fputs("       mgopherd -h", stderr);
+	fputs("       mgopherd -h\n", stderr);
 }
