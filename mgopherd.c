@@ -31,6 +31,7 @@ static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
 static char *joinpath(const char *part1, const char *part2);
 static char itemtype(const char *path);
+static const char *mimetype(const char *path);
 
 int
 main(int argc, char **argv)
@@ -157,38 +158,49 @@ itemtype(const char *path)
 	assert(path != NULL);
 
 	struct stat s;
-	if (stat(path, &s) == -1)
+	if (stat(path, &s) == -1) {
 		fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
+		return (IT_UNKNOWN);
+	}
 
 	char it;
 	if (S_ISREG(s.st_mode)) {
-		magic_t mh = magic_open(MAGIC_MIME_TYPE);
-		if (mh == NULL) {
-			fprintf(stderr, "magic_open: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		if (magic_load(mh, NULL) == -1) {
-			fprintf(stderr, "magic_load: %s\n", magic_error(mh));
-			exit(EXIT_FAILURE);
-		}
-
-		const char *mime = magic_file(mh, path);
-		if (mime == NULL) {
-			fprintf(stderr, "magic_file: %s\n", magic_error(mh));
-			exit(EXIT_FAILURE);
-		}
-
+		const char *mime = mimetype(path);
 		if (strncmp(mime, "text/", 5) == 0)
 			it = IT_FILE;
 		else
 			it = IT_BINARY;
-
-		magic_close(mh);
 	} else if (S_ISDIR(s.st_mode))
 		it = IT_DIR;
 	else
 		it = IT_UNKNOWN;;
 
 	return (it);
+}
+
+static const char *
+mimetype(const char *path)
+{
+	assert(path != NULL);
+
+	magic_t mh = magic_open(MAGIC_MIME_TYPE);
+	if (mh == NULL) {
+		fprintf(stderr, "magic_open: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	if (magic_load(mh, NULL) == -1) {
+		fprintf(stderr, "magic_load: %s\n", magic_error(mh));
+		exit(EXIT_FAILURE);
+	}
+
+	const char *mime = magic_file(mh, path);
+	if (mime == NULL) {
+		fprintf(stderr, "magic_file: %s\n", magic_error(mh));
+		exit(EXIT_FAILURE);
+	}
+
+	magic_close(mh);
+
+	return (mime);
 }
