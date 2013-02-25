@@ -22,6 +22,8 @@
 #include "options.h"
 #include "tools.h"
 
+#define BINBLOCK	1024
+
 #define IT_UNKNOWN	'?'
 #define IT_FILE		'0'
 #define IT_DIR		'1'
@@ -30,6 +32,7 @@
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
 static char itemtype(const char *path);
+static void writefile(const char *path, FILE *out);
 
 int
 main(int argc, char **argv)
@@ -51,7 +54,7 @@ main(int argc, char **argv)
 	else if ((p = strchr(request, '\n')) != NULL)
 		/*
 		 * requests are expected to be terminated by \r\n. Fall back to
-		 * \n anyway... 
+		 * \n anyway...
 		 */
 		*p = '\0';
 
@@ -60,7 +63,7 @@ main(int argc, char **argv)
 	switch (itemtype(path)){
 	case IT_FILE:
 	case IT_BINARY:
-		fputs("\r\n== Not implemented yet. ==\r\n.\r\n", stdout);
+		writefile(path, stdout);
 		break;
 	case IT_DIR:
 		writemenu(options, request, stdout);
@@ -145,4 +148,43 @@ itemtype(const char *path)
 		it = IT_UNKNOWN;;
 
 	return (it);
+}
+
+static void
+writefile(const char *path, FILE *out)
+{
+	assert(path != NULL);
+	assert(out != NULL);
+
+	FILE *in = fopen(path, "r");
+	if (in == NULL) {
+		fprintf(stderr, "fopen in: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	void *block = malloc(BINBLOCK);
+	if (block == NULL) {
+		fprintf(stderr, "malloc block: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	size_t read;
+	while ((read = fread(block, 1, BINBLOCK, in)) > 0) {
+		size_t written = fwrite(block, 1, read, out);
+		if (written < read) {
+			fprintf(stderr, "fwrite: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		
+		if (read < BINBLOCK) {
+			if (ferror(stdin)) {
+				fprintf(stderr, "fgets request: %s\n",
+				    strerror(errno));
+				exit(EXIT_FAILURE);
+			}
+			break;
+		}
+	}
+
+	free(block);
 }
