@@ -46,6 +46,7 @@ main(int argc, char **argv)
 	if (fgets(request, sizeof(request), stdin) == NULL) {
 		if (ferror(stdin)) {
 			fprintf(stderr, "fgets request: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
 		}
 	}
 	char *p;
