@@ -27,7 +27,12 @@
 #define IT_UNKNOWN	'?'
 #define IT_FILE		'0'
 #define IT_DIR		'1'
+#define IT_ARCHIVE	'5'
 #define IT_BINARY	'9'
+#define IT_GIF		'g'
+#define IT_HTML		'h'
+#define IT_IMAGE	'I'
+#define IT_AUDIO	's'
 
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
@@ -63,7 +68,12 @@ main(int argc, char **argv)
 
 	switch (itemtype(path)){
 	case IT_FILE:
+	case IT_ARCHIVE:
 	case IT_BINARY:
+	case IT_GIF:
+	case IT_HTML:
+	case IT_IMAGE:
+	case IT_AUDIO:
 		writefile(path, stdout);
 		break;
 	case IT_DIR:
@@ -137,8 +147,21 @@ itemtype(const char *path)
 		char *mime = tool_mimetype(path);
 		assert(mime != NULL);
 
-		if (strncmp(mime, "text/", 5) == 0)
+		if (strcmp(mime, "text/html") == 0)
+			it = IT_HTML;
+		else if (strncmp(mime, "text/", 5) == 0)
 			it = IT_FILE;
+		else if (strcmp(mime, "image/gif") == 0)
+			it = IT_GIF;
+		else if (strncmp(mime, "image/", 6) == 0)
+			it = IT_IMAGE;
+		else if ((strncmp(mime, "audio/", 6) == 0) ||
+		    (strcmp(mime, "application/ogg") == 0))
+			it = IT_AUDIO;
+		else if ((strcmp(mime, "application/x-bzip2") == 0) ||
+		    (strcmp(mime, "application/x-gzip") == 0) ||
+		    (strcmp(mime, "application/zip") == 0))
+			it = IT_ARCHIVE;
 		else
 			it = IT_BINARY;
 
