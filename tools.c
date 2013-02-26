@@ -74,7 +74,7 @@ tool_joinpath(const char *part1, const char *part2)
 	const char *p2 = part2;
 	if (*p2 == '/')
 		p2++;
-	pj = stpncpy(pj, p2, rl);
+	strncpy(pj, p2, rl);
 
 	if (joined[PATH_MAX-1] != '\0') {
 		fputs("joinpath: joined too long\n", stderr);
