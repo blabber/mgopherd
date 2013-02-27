@@ -7,11 +7,9 @@
 
 #define _POSIX_C_SOURCE 200809
 
-#include <sys/types.h>
 #include <sys/stat.h>
 
 #include <assert.h>
-#include <dirent.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -96,30 +94,24 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	assert(out != NULL);
 
 	char *dir = tool_joinpath(opt_get_root(options), selector);
-	DIR *dh = opendir(dir);
-	if (dh == NULL) {
-		fprintf(stderr, "opendir %s: %s\n", dir, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	char **items = tool_getitems(dir);
 
-	struct dirent *de;
-	while ((de = readdir(dh)) != NULL) {
-		char *item = de->d_name;
-		if (item[0] == '.')
+	for (char **item = items; *item != NULL; item++) {
+		if (*item[0] == '.')
 			continue;
 
-		char *path = tool_joinpath(dir, de->d_name);
+		char *path = tool_joinpath(dir, *item);
 		char type = itemtype(path);
 		if (type == '?') {
 			free(path);
 			continue;
 		}
 
-		char *sel = tool_joinpath(selector, item);
+		char *sel = tool_joinpath(selector, *item);
 		char *host = opt_get_host(options);
 		char *port = opt_get_port(options);
 
-		fprintf(out, "%c%s\t%s\t%s\t%s\r\n", type, item, sel, host,
+		fprintf(out, "%c%s\t%s\t%s\t%s\r\n", type, *item, sel, host,
 		    port);
 
 		free(sel);
@@ -127,7 +119,7 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	}
 	fputs(".\r\n", out);
 
-	closedir(dh);
+	tool_freeitems(items);
 	free(dir);
 }
 

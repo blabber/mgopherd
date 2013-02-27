@@ -10,5 +10,7 @@
 
 char *tool_mimetype(const char *path);
 char *tool_joinpath(const char *part1, const char *part2);
+char **tool_getitems(const char *path);
+void tool_freeitems(char **items);
 
 #endif /* !TOOLS_H */
