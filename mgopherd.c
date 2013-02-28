@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 
 #include <assert.h>
+#include <dirent.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -36,6 +37,7 @@ static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
 static char itemtype(const char *path);
 static void writefile(const char *path, FILE *out);
+static int entryselect(const struct dirent *entry);
 
 int
 main(int argc, char **argv)
@@ -94,36 +96,52 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	assert(out != NULL);
 
 	char *dir = tool_joinpath(opt_get_root(options), selector);
-	char **items = tool_getitems(dir);
 
-	for (char **item = items; *item != NULL; item++) {
-		if (*item[0] == '.')
-			continue;
-
-		char *path = tool_joinpath(dir, *item);
+	struct dirent **dirents;
+	int entries = scandir(dir, &dirents, &entryselect, &alphasort);
+	if (entries == -1) {
+		fprintf(stderr, "scandir: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	for (int i = 0; i < entries; i++) {
+		char *item = dirents[i]->d_name;
+		char *path = tool_joinpath(dir, item);
 		char type = itemtype(path);
 		if (type == '?') {
 			free(path);
 			continue;
 		}
 
-		char *sel = tool_joinpath(selector, *item);
+		char *sel = tool_joinpath(selector, item);
 		char *host = opt_get_host(options);
 		char *port = opt_get_port(options);
 
 		const char *delimeter = "";
 		if (selector[0] != '/')
 			delimeter = "/";
-		fprintf(out, "%c%s\t%s%s\t%s\t%s\r\n", type, *item, delimeter,
+
+		fprintf(out, "%c%s\t%s%s\t%s\t%s\r\n", type, item, delimeter,
 		    sel, host, port);
 
 		free(sel);
 		free(path);
+		free(dirents[i]);
 	}
 	fputs(".\r\n", out);
 
-	tool_freeitems(items);
+	free(dirents);
 	free(dir);
+}
+
+static int
+entryselect(const struct dirent *entry)
+{
+	assert(entry != NULL);
+
+	if (entry->d_name[0] == '.')
+		return (0);
+
+	return (1);
 }
 
 static char

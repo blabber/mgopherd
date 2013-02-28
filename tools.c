@@ -7,10 +7,7 @@
 
 #define _POSIX_C_SOURCE 200809
 
-#include <sys/types.h>
-
 #include <assert.h>
-#include <dirent.h>
 #include <errno.h>
 #include <limits.h>
 #include <magic.h>
@@ -21,8 +18,6 @@
 #include "tools.h"
 
 #define INITIALCAPACITY	32
-
-static int itemcmp(const void *item1, const void *item2);
 
 char *
 tool_mimetype(const char *path)
@@ -89,74 +84,4 @@ tool_joinpath(const char *part1, const char *part2)
 	}
 
 	return (joined);
-}
-
-char **
-tool_getitems(const char *path)
-{
-	assert(path != NULL);
-
-	DIR *dh = opendir(path);
-	if (dh == NULL) {
-		fprintf(stderr, "opendir %s: %s\n", path, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	size_t capacity = INITIALCAPACITY;
-	char **items = malloc(capacity * sizeof(char *));
-	if (items == NULL) {
-		fprintf(stderr, "malloc items: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	size_t item = 0;
-	struct dirent *de;
-	while ((de = readdir(dh)) != NULL) {
-		if (item == capacity) {
-			capacity *= 2;
-			items = realloc(items, capacity * sizeof(char *));
-			if (items == NULL) {
-				fprintf(stderr, "realloc items: %s\n",
-				    strerror(errno));
-				exit(EXIT_FAILURE);
-			}
-		}
-
-		items[item] = strdup(de->d_name);
-		if (items[item] == NULL) {
-			fprintf(stderr, "strdup item: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		item++;
-	}
-	items[item] = NULL;
-
-	closedir(dh);
-
-	qsort(items, item, sizeof(char *), &itemcmp);
-
-	return (items);
-}
-
-void
-tool_freeitems(char **items)
-{
-	assert(items != NULL);
-
-	for (char **item = items; *item != NULL; item++)
-		free(*item);
-
-	free(items);
-}
-
-static int
-itemcmp(const void *item1, const void *item2)
-{
-	assert(item1 != NULL);
-	assert(item2 != NULL);
-
-	const char *c1 = *(const char * const *)item1;
-	const char *c2 = *(const char * const *)item2;
-
-	return strcmp(c1, c2);
 }
