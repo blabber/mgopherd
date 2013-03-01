@@ -37,6 +37,7 @@ tool_mimetype(const char *path)
 
 	const char *mime = magic_file(mh, path);
 	if (mime == NULL) {
+		magic_close(mh);
 		fprintf(stderr, "magic_file %s: %s\n", path, magic_error(mh));
 		exit(EXIT_FAILURE);
 	}
@@ -44,6 +45,7 @@ tool_mimetype(const char *path)
 	char *ret = strdup(mime);
 	if (ret == NULL)
 	{
+		magic_close(mh);
 		fprintf(stderr, "strdup mime: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
