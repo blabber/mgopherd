@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "options.h"
 #include "tools.h"
@@ -38,6 +39,7 @@ static void writemenu(struct opt_options *options, const char *selector,
 static char itemtype(const char *path);
 static void writefile(const char *path, FILE *out);
 static int entryselect(const struct dirent *entry);
+static bool checkrights(const char *path, char type);
 
 int
 main(int argc, char **argv)
@@ -114,8 +116,9 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 		char *item = dirents[i]->d_name;
 		char *path = tool_joinpath(dir, item);
 		char type = itemtype(path);
-		if (type == IT_IGNORE) {
+		if (!checkrights(path, type)) {
 			free(path);
+			free(dirents[i]);
 			continue;
 		}
 
@@ -138,6 +141,41 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 
 	free(dirents);
 	free(dir);
+}
+
+static bool
+checkrights(const char *path, char type)
+{
+	assert(path != NULL);
+
+	int mode;
+	switch (type) {
+	case IT_FILE:
+	case IT_ARCHIVE:
+	case IT_BINARY:
+	case IT_GIF:
+	case IT_HTML:
+	case IT_IMAGE:
+	case IT_AUDIO:
+		mode = R_OK;
+		break;
+	case IT_DIR:
+		mode = R_OK | X_OK;
+		break;
+	case IT_IGNORE:
+	default:
+		return (false);
+	}
+
+	if (access(path, mode) == -1) {
+		if (errno != EACCES) {
+			fprintf(stderr, "access %s: %s\n", path,
+			    strerror(errno));
+		}
+		return (false);
+	}
+
+	return (true);
 }
 
 static int
@@ -212,15 +250,15 @@ writefile(const char *path, FILE *out)
 		exit(EXIT_FAILURE);
 	}
 
-	size_t read;
-	while ((read = fread(block, 1, BINBLOCK, in)) > 0) {
-		size_t written = fwrite(block, 1, read, out);
-		if (written < read) {
+	size_t r;
+	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
+		size_t w = fwrite(block, 1, r, out);
+		if (w < r) {
 			fprintf(stderr, "fwrite: %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 		
-		if (read < BINBLOCK) {
+		if (r < BINBLOCK) {
 			if (ferror(stdin)) {
 				fprintf(stderr, "fgets request: %s\n",
 				    strerror(errno));
