@@ -157,7 +157,7 @@ itemtype(const char *path)
 	assert(path != NULL);
 
 	struct stat s;
-	if (stat(path, &s) == -1) {
+	if (lstat(path, &s) == -1) {
 		fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
 		return (IT_IGNORE);
 	}
