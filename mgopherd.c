@@ -64,6 +64,13 @@ main(int argc, char **argv)
 		 */
 		*p = '\0';
 
+	if (((*request != '/') && (*request != '\0')) ||
+	    ((*request == '/') && (*(request+1) == '.'))) {
+		free(options);
+		fprintf(stderr, "invalid request: %s\n", request);
+		exit(EXIT_FAILURE);
+	}
+
 	char *path = tool_joinpath(opt_get_root(options), request);
 
 	switch (itemtype(path)){
