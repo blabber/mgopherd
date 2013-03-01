@@ -23,7 +23,7 @@
 
 #define BINBLOCK	1024
 
-#define IT_UNKNOWN	'?'
+#define IT_IGNORE	'?'
 #define IT_FILE		'0'
 #define IT_DIR		'1'
 #define IT_ARCHIVE	'5'
@@ -86,7 +86,7 @@ main(int argc, char **argv)
 	case IT_DIR:
 		writemenu(options, request, stdout);
 		break;
-	case IT_UNKNOWN:
+	case IT_IGNORE:
 	default:
 		fprintf(stderr, "unknown itemtype: %s\n", request);
 	}
@@ -114,7 +114,7 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 		char *item = dirents[i]->d_name;
 		char *path = tool_joinpath(dir, item);
 		char type = itemtype(path);
-		if (type == '?') {
+		if (type == IT_IGNORE) {
 			free(path);
 			continue;
 		}
@@ -159,7 +159,7 @@ itemtype(const char *path)
 	struct stat s;
 	if (stat(path, &s) == -1) {
 		fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
-		return (IT_UNKNOWN);
+		return (IT_IGNORE);
 	}
 
 	char it;
@@ -189,7 +189,7 @@ itemtype(const char *path)
 	} else if (S_ISDIR(s.st_mode))
 		it = IT_DIR;
 	else
-		it = IT_UNKNOWN;;
+		it = IT_IGNORE;;
 
 	return (it);
 }
