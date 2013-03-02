@@ -199,7 +199,6 @@ checkrights(const char *path, char type)
 			W_INFO(stdout, "I: I couldn't check access rights for "
 			    "an item (%s).", path);
 			W_ERR(stdout, "E: accesss: %s", strerror(errno));
-			W_END(stdout);
 		}
 		return (false);
 	}
