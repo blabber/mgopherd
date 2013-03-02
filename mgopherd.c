@@ -22,17 +22,29 @@
 #include "options.h"
 #include "tools.h"
 
+#define FAKEHOST	"fake"
+#define FAKEPORT	"1"
+
 #define BINBLOCK	1024
 
 #define IT_IGNORE	'?'
 #define IT_FILE		'0'
 #define IT_DIR		'1'
+#define IT_ERROR	'3'
 #define IT_ARCHIVE	'5'
 #define IT_BINARY	'9'
 #define IT_GIF		'g'
 #define IT_HTML		'h'
+#define IT_INFO		'i'
 #define IT_IMAGE	'I'
 #define IT_AUDIO	's'
+
+#define W_FAKEITEM(OUT, FMT, TYPE, ...)					\
+    fprintf(OUT, "%c" FMT "\t\t" FAKEHOST "\t" FAKEPORT "\r\n", TYPE,	\
+    __VA_ARGS__);
+#define W_ERR(OUT,FMT, ...)	W_FAKEITEM(OUT, FMT, IT_ERROR, __VA_ARGS__)
+#define W_INFO(OUT,FMT, ...)	W_FAKEITEM(OUT, FMT, IT_INFO, __VA_ARGS__)
+#define W_END(OUT)	fputs(".\r\n", OUT);
 
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
@@ -52,7 +64,11 @@ main(int argc, char **argv)
 	char request[LINE_MAX];
 	if (fgets(request, sizeof(request), stdin) == NULL) {
 		if (ferror(stdin)) {
-			fprintf(stderr, "fgets request: %s\n", strerror(errno));
+			W_INFO(stdout, "I: %s", "I have a problem reading your "
+			    "request.");
+			W_ERR(stdout, "E: fgets: %s", strerror(errno));
+			W_END(stdout);
+			free(options);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -68,8 +84,10 @@ main(int argc, char **argv)
 
 	if (((*request != '/') && (*request != '\0')) ||
 	    ((*request == '/') && (*(request+1) == '.'))) {
-		free(options);
-		fprintf(stderr, "invalid request: %s\n", request);
+		W_INFO(stdout, "I: %s", "Your request seems to be invalid.");
+		W_ERR(stdout, "E: request: %s", request);
+		W_END(stdout);
+		opt_free(options);
 		exit(EXIT_FAILURE);
 	}
 
@@ -90,7 +108,12 @@ main(int argc, char **argv)
 		break;
 	case IT_IGNORE:
 	default:
-		fprintf(stderr, "unknown itemtype: %s\n", request);
+		W_INFO(stdout, "I: %s", "You requested an invalid item.");
+		W_ERR(stdout, "E: request: %s", request);
+		W_END(stdout);
+		free(path);
+		opt_free(options);
+		exit(EXIT_FAILURE);
 	}
 
 	free(path);
@@ -109,7 +132,11 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	struct dirent **dirents;
 	int entries = scandir(dir, &dirents, &entryselect, &alphasort);
 	if (entries == -1) {
-		fprintf(stderr, "scandir: %s\n", strerror(errno));
+		W_INFO(stdout, "I: I have a problem scanning a directory (%s).",
+		    dir);
+		W_ERR(stdout, "E: scandir: %s", strerror(errno));
+		W_END(stdout);
+		free(dirents);
 		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < entries; i++) {
@@ -169,8 +196,10 @@ checkrights(const char *path, char type)
 
 	if (access(path, mode) == -1) {
 		if (errno != EACCES) {
-			fprintf(stderr, "access %s: %s\n", path,
-			    strerror(errno));
+			W_INFO(stdout, "I: I couldn't check access rights for "
+			    "an item (%s).", path);
+			W_ERR(stdout, "E: accesss: %s", strerror(errno));
+			W_END(stdout);
 		}
 		return (false);
 	}
@@ -240,13 +269,19 @@ writefile(const char *path, FILE *out)
 
 	FILE *in = fopen(path, "r");
 	if (in == NULL) {
-		fprintf(stderr, "fopen in: %s\n", strerror(errno));
+		W_INFO(out, "I: I could not open the requested item (%s).",
+		    path);
+		W_ERR(out, "E: fopen: %s", strerror(errno));
+		W_END(stdout);
 		exit(EXIT_FAILURE);
 	}
 
 	void *block = malloc(BINBLOCK);
 	if (block == NULL) {
-		fprintf(stderr, "malloc block: %s\n", strerror(errno));
+		W_INFO(out, "I: %s", "I could not allocate memory.");
+		W_ERR(out, "E: malloc: %s", strerror(errno));
+		W_END(stdout);
+		free(block);
 		exit(EXIT_FAILURE);
 	}
 
@@ -254,14 +289,21 @@ writefile(const char *path, FILE *out)
 	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
 		size_t w = fwrite(block, 1, r, out);
 		if (w < r) {
-			fprintf(stderr, "fwrite: %s\n", strerror(errno));
+			W_INFO(out, "I: I have a problem writing your "
+			    "requested item (%s).", path);
+			W_ERR(out, "E: fwrite: %s", strerror(errno));
+			W_END(stdout);
+			free(block);
 			exit(EXIT_FAILURE);
 		}
 		
 		if (r < BINBLOCK) {
-			if (ferror(stdin)) {
-				fprintf(stderr, "fgets request: %s\n",
-				    strerror(errno));
+			if (ferror(in)) {
+				W_INFO(out, "I: I have a problem reading your "
+				    "requested item (%s).", path);
+				W_ERR(out, "E: fread: %s", strerror(errno));
+				W_END(stdout);
+				free(block);
 				exit(EXIT_FAILURE);
 			}
 			break;
