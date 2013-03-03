@@ -10,5 +10,6 @@
 
 char *tool_mimetype(const char *path);
 char *tool_joinpath(const char *part1, const char *part2);
+void tool_stripcrlf(char *line);
 
 #endif /* !TOOLS_H */

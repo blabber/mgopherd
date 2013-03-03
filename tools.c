@@ -87,3 +87,15 @@ tool_joinpath(const char *part1, const char *part2)
 
 	return (joined);
 }
+
+void
+tool_stripcrlf(char *line)
+{
+	assert(line != NULL);
+
+	char *p = strchr(line, '\n');
+	if (p != NULL && p > line && *(p-1) == '\r')
+		p--;
+	if (p != NULL)
+		*p = '\0';
+}

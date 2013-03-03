@@ -72,15 +72,7 @@ main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 	}
-	char *p;
-	if ((p = strstr(request, "\r\n")) != NULL)
-		*p = '\0';
-	else if ((p = strchr(request, '\n')) != NULL)
-		/*
-		 * requests are expected to be terminated by \r\n. Fall back to
-		 * \n anyway...
-		 */
-		*p = '\0';
+	tool_stripcrlf(request);
 
 	if (((*request != '/') && (*request != '\0')) ||
 	    ((*request == '/') && (*(request+1) == '.'))) {
