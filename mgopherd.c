@@ -44,7 +44,15 @@
     __VA_ARGS__);
 #define W_ERR(OUT,FMT, ...)	W_FAKEITEM(OUT, FMT, IT_ERROR, __VA_ARGS__)
 #define W_INFO(OUT,FMT, ...)	W_FAKEITEM(OUT, FMT, IT_INFO, __VA_ARGS__)
-#define W_END(OUT)	fputs(".\r\n", OUT);
+#define W_END(OUT)	sendeom(OUT);
+
+struct item {
+	char type;
+	char *display;
+	char *selector;
+	char *host;
+	char *port;
+};
 
 static void writemenu(struct opt_options *options, const char *selector,
     FILE *out);
@@ -52,6 +60,8 @@ static char itemtype(const char *path);
 static void writefile(const char *path, FILE *out);
 static int entryselect(const struct dirent *entry);
 static bool checkrights(const char *path, char type);
+static void senditem(struct item *it, FILE *out);
+static void sendeom(FILE *out);
 
 int
 main(int argc, char **argv)
@@ -81,6 +91,11 @@ main(int argc, char **argv)
 		W_END(stdout);
 		opt_free(options);
 		exit(EXIT_FAILURE);
+	}
+
+	if (*request == '\0') {
+		request[0] = '/';
+		request[1] = '\0';
 	}
 
 	char *path = tool_joinpath(opt_get_root(options), request);
@@ -135,28 +150,28 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 		char *item = dirents[i]->d_name;
 		char *path = tool_joinpath(dir, item);
 		char type = itemtype(path);
+		char *sel = tool_joinpath(selector, item);
 		if (!checkrights(path, type)) {
+			free(sel);
 			free(path);
 			free(dirents[i]);
 			continue;
 		}
 
-		char *sel = tool_joinpath(selector, item);
-		char *host = opt_get_host(options);
-		char *port = opt_get_port(options);
+		struct item it;
+		it.type = type;
+		it.display = item;
+		it.selector = sel;
+		it.host = opt_get_host(options);
+		it.port = opt_get_port(options);
 
-		const char *delimeter = "";
-		if (selector[0] != '/')
-			delimeter = "/";
-
-		fprintf(out, "%c%s\t%s%s\t%s\t%s\r\n", type, item, delimeter,
-		    sel, host, port);
+		senditem(&it, out);
 
 		free(sel);
 		free(path);
 		free(dirents[i]);
 	}
-	fputs(".\r\n", out);
+	sendeom(out);
 
 	free(dirents);
 	free(dir);
@@ -250,6 +265,21 @@ itemtype(const char *path)
 		it = IT_IGNORE;;
 
 	return (it);
+}
+
+static void
+senditem(struct item *it, FILE *out)
+{
+	assert(it != NULL);
+
+	fprintf(out, "%c%s\t%s\t%s\t%s\r\n", it->type, it->display,
+	    it->selector, it->host, it->port);
+}
+
+static void
+sendeom(FILE *out)
+{
+	fputs(".\r\n", out);
 }
 
 static void

@@ -72,7 +72,7 @@ tool_joinpath(const char *part1, const char *part2)
 		*pj++ = '/';
 		*pj = '\0';
 	}
-	
+
 	size_t rl = PATH_MAX - (pj - joined);
 
 	const char *p2 = part2;
