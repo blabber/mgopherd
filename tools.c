@@ -81,6 +81,7 @@ tool_join_path(const char *part1, const char *part2)
 	strncpy(pj, p2, rl);
 
 	if (joined[PATH_MAX-1] != '\0') {
+		free(joined);
 		fputs("joinpath: joined too long\n", stderr);
 		exit(EXIT_FAILURE);
 	}
