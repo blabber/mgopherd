@@ -9,7 +9,7 @@
 #define TOOLS_H
 
 char *tool_mimetype(const char *path);
-char *tool_joinpath(const char *part1, const char *part2);
-void tool_stripcrlf(char *line);
+char *tool_join_path(const char *part1, const char *part2);
+void tool_strip_crlf(char *line);
 
 #endif /* !TOOLS_H */

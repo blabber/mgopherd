@@ -39,10 +39,10 @@
 #define IT_IMAGE	'I'
 #define IT_AUDIO	's'
 
-#define sendinfo(OUT, INFO, DETAIL)					\
-	send_info_error((OUT), (IT_INFO), (INFO), (DETAIL))
-#define senderror(OUT, ERROR, DETAIL)					\
-	send_info_error((OUT), (IT_ERROR), (ERROR), (DETAIL))
+#define send_info(OUT, INFO, DETAIL)					\
+	send_fake_item((OUT), (IT_INFO), (INFO), (DETAIL))
+#define send_error(OUT, ERROR, DETAIL)					\
+	send_fake_item((OUT), (IT_ERROR), (ERROR), (DETAIL))
 
 
 struct item {
@@ -53,16 +53,16 @@ struct item {
 	const char *port;
 };
 
-static void writemenu(struct opt_options *options, const char *selector,
+static void write_menu(struct opt_options *options, const char *selector,
     FILE *out);
 static char itemtype(const char *path);
-static void writefile(const char *path, FILE *out);
-static int entryselect(const struct dirent *entry);
-static bool checkrights(const char *path, char type);
-static void senditem(FILE *out, struct item *it);
-static void send_info_error(FILE *out, char type, const char *info,
+static void write_file(const char *path, FILE *out);
+static int entry_select(const struct dirent *entry);
+static bool check_rights(const char *path, char type);
+static void send_item(FILE *out, struct item *it);
+static void send_fake_item(FILE *out, char type, const char *info,
     const char *detail);
-static void sendeom(FILE *out);
+static void send_eom(FILE *out);
 
 int
 main(int argc, char **argv)
@@ -75,21 +75,21 @@ main(int argc, char **argv)
 	char request[LINE_MAX];
 	if (fgets(request, sizeof(request), stdin) == NULL) {
 		if (ferror(stdin)) {
-			sendinfo(stdout, "I: I have a problem reading your "
+			send_info(stdout, "I: I have a problem reading your "
 			    "request.", NULL);
-			senderror(stdout, "E: fgets", strerror(errno));
-			sendeom(stdout);
+			send_error(stdout, "E: fgets", strerror(errno));
+			send_eom(stdout);
 			free(options);
 			exit(EXIT_FAILURE);
 		}
 	}
-	tool_stripcrlf(request);
+	tool_strip_crlf(request);
 
 	if (((*request != '/') && (*request != '\0')) ||
 	    ((*request == '/') && (*(request+1) == '.'))) {
-		sendinfo(stdout, "I: Your request seems to be invalid.", NULL);
-		senderror(stdout, "E: request", request);
-		sendeom(stdout);
+		send_info(stdout, "I: Your request seems to be invalid.", NULL);
+		send_error(stdout, "E: request", request);
+		send_eom(stdout);
 		opt_free(options);
 		exit(EXIT_FAILURE);
 	}
@@ -99,7 +99,7 @@ main(int argc, char **argv)
 		request[1] = '\0';
 	}
 
-	char *path = tool_joinpath(opt_get_root(options), request);
+	char *path = tool_join_path(opt_get_root(options), request);
 
 	switch (itemtype(path)){
 	case IT_FILE:
@@ -109,16 +109,16 @@ main(int argc, char **argv)
 	case IT_HTML:
 	case IT_IMAGE:
 	case IT_AUDIO:
-		writefile(path, stdout);
+		write_file(path, stdout);
 		break;
 	case IT_DIR:
-		writemenu(options, request, stdout);
+		write_menu(options, request, stdout);
 		break;
 	case IT_IGNORE:
 	default:
-		sendinfo(stdout, "I: You requested an invalid item.", NULL);
-		senderror(stdout, "E: request", request);
-		sendeom(stdout);
+		send_info(stdout, "I: You requested an invalid item.", NULL);
+		send_error(stdout, "E: request", request);
+		send_eom(stdout);
 		free(path);
 		opt_free(options);
 		exit(EXIT_FAILURE);
@@ -129,30 +129,30 @@ main(int argc, char **argv)
 }
 
 static void
-writemenu(struct opt_options *options, const char *selector, FILE *out)
+write_menu(struct opt_options *options, const char *selector, FILE *out)
 {
 	assert(options != NULL);
 	assert(selector != NULL);
 	assert(out != NULL);
 
-	char *dir = tool_joinpath(opt_get_root(options), selector);
+	char *dir = tool_join_path(opt_get_root(options), selector);
 
 	struct dirent **dirents;
-	int entries = scandir(dir, &dirents, &entryselect, &alphasort);
+	int entries = scandir(dir, &dirents, &entry_select, &alphasort);
 	if (entries == -1) {
-		sendinfo(stdout, "I: I have a problem scanning a directory",
+		send_info(stdout, "I: I have a problem scanning a directory",
 		    dir);
-		senderror(stdout, "E: scandir", strerror(errno));
-		sendeom(stdout);
+		send_error(stdout, "E: scandir", strerror(errno));
+		send_eom(stdout);
 		free(dirents);
 		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < entries; i++) {
 		char *item = dirents[i]->d_name;
-		char *path = tool_joinpath(dir, item);
+		char *path = tool_join_path(dir, item);
 		char type = itemtype(path);
-		char *sel = tool_joinpath(selector, item);
-		if (!checkrights(path, type)) {
+		char *sel = tool_join_path(selector, item);
+		if (!check_rights(path, type)) {
 			free(sel);
 			free(path);
 			free(dirents[i]);
@@ -167,20 +167,20 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 			.port = opt_get_port(options)
 		};
 
-		senditem(out, &it);
+		send_item(out, &it);
 
 		free(sel);
 		free(path);
 		free(dirents[i]);
 	}
-	sendeom(out);
+	send_eom(out);
 
 	free(dirents);
 	free(dir);
 }
 
 static bool
-checkrights(const char *path, char type)
+check_rights(const char *path, char type)
 {
 	assert(path != NULL);
 
@@ -205,9 +205,9 @@ checkrights(const char *path, char type)
 
 	if (access(path, mode) == -1) {
 		if (errno != EACCES) {
-			sendinfo(stdout, "I: I couldn't check access rights "
+			send_info(stdout, "I: I couldn't check access rights "
 			    "for an item", path);
-			senderror(stdout, "E: accesss", strerror(errno));
+			send_error(stdout, "E: accesss", strerror(errno));
 		}
 		return (false);
 	}
@@ -216,7 +216,7 @@ checkrights(const char *path, char type)
 }
 
 static int
-entryselect(const struct dirent *entry)
+entry_select(const struct dirent *entry)
 {
 	assert(entry != NULL);
 
@@ -270,7 +270,7 @@ itemtype(const char *path)
 }
 
 static void
-senditem(FILE *out, struct item *it)
+send_item(FILE *out, struct item *it)
 {
 	assert(out != NULL);
 	assert(it != NULL);
@@ -280,7 +280,7 @@ senditem(FILE *out, struct item *it)
 }
 
 static void
-send_info_error(FILE *out, char type, const char *info, const char *detail)
+send_fake_item(FILE *out, char type, const char *info, const char *detail)
 {
 	assert(out != NULL);
 	assert(info != NULL);
@@ -306,13 +306,13 @@ send_info_error(FILE *out, char type, const char *info, const char *detail)
 		.port = FAKEPORT
 	};
 
-	senditem(out, &it);
+	send_item(out, &it);
 
 	free(display);
 }
 
 static void
-sendeom(FILE *out)
+send_eom(FILE *out)
 {
 	assert(out != NULL);
 
@@ -320,24 +320,24 @@ sendeom(FILE *out)
 }
 
 static void
-writefile(const char *path, FILE *out)
+write_file(const char *path, FILE *out)
 {
 	assert(path != NULL);
 	assert(out != NULL);
 
 	FILE *in = fopen(path, "r");
 	if (in == NULL) {
-		sendinfo(out, "I: I could not open the requested item", path);
-		senderror(out, "E: fopen", strerror(errno));
-		sendeom(stdout);
+		send_info(out, "I: I could not open the requested item", path);
+		send_error(out, "E: fopen", strerror(errno));
+		send_eom(stdout);
 		exit(EXIT_FAILURE);
 	}
 
 	void *block = malloc(BINBLOCK);
 	if (block == NULL) {
-		sendinfo(out, "I: I could not allocate memory.", NULL);
-		senderror(out, "E: malloc", strerror(errno));
-		sendeom(stdout);
+		send_info(out, "I: I could not allocate memory.", NULL);
+		send_error(out, "E: malloc", strerror(errno));
+		send_eom(stdout);
 		free(block);
 		exit(EXIT_FAILURE);
 	}
@@ -346,20 +346,20 @@ writefile(const char *path, FILE *out)
 	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
 		size_t w = fwrite(block, 1, r, out);
 		if (w < r) {
-			sendinfo(out, "I: I have a problem writing your "
+			send_info(out, "I: I have a problem writing your "
 			    "requested item", path);
-			senderror(out, "E: fwrite", strerror(errno));
-			sendeom(stdout);
+			send_error(out, "E: fwrite", strerror(errno));
+			send_eom(stdout);
 			free(block);
 			exit(EXIT_FAILURE);
 		}
 		
 		if (r < BINBLOCK) {
 			if (ferror(in)) {
-				sendinfo(out, "I: I have a problem reading "
+				send_info(out, "I: I have a problem reading "
 				    "your requested item", path);
-				senderror(out, "E: fread", strerror(errno));
-				sendeom(stdout);
+				send_error(out, "E: fread", strerror(errno));
+				send_eom(stdout);
 				free(block);
 				exit(EXIT_FAILURE);
 			}

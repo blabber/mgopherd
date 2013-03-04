@@ -56,7 +56,7 @@ tool_mimetype(const char *path)
 }
 
 char *
-tool_joinpath(const char *part1, const char *part2)
+tool_join_path(const char *part1, const char *part2)
 {
 	assert(part1 != NULL);
 	assert(part2 != NULL);
@@ -89,7 +89,7 @@ tool_joinpath(const char *part1, const char *part2)
 }
 
 void
-tool_stripcrlf(char *line)
+tool_strip_crlf(char *line)
 {
 	assert(line != NULL);
 
