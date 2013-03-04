@@ -271,6 +271,7 @@ static void
 senditem(struct item *it, FILE *out)
 {
 	assert(it != NULL);
+	assert(out != NULL);
 
 	fprintf(out, "%c%s\t%s\t%s\t%s\r\n", it->type, it->display,
 	    it->selector, it->host, it->port);
@@ -279,6 +280,8 @@ senditem(struct item *it, FILE *out)
 static void
 sendeom(FILE *out)
 {
+	assert(out != NULL);
+
 	fputs(".\r\n", out);
 }
 
