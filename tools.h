@@ -10,8 +10,8 @@
 
 #include <stdio.h>
 
-char *tool_mimetype(const char *path, FILE *out);
-char *tool_join_path(const char *part1, const char *part2, FILE *out);
-void tool_strip_crlf(char *line);
+char *tool_mimetype(const char *_path, FILE *_out);
+char *tool_join_path(const char *_part1, const char *_part2, FILE *_out);
+void tool_strip_crlf(char *_line);
 
 #endif /* !TOOLS_H */
