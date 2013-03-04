@@ -39,19 +39,18 @@
 #define IT_IMAGE	'I'
 #define IT_AUDIO	's'
 
-#define W_FAKEITEM(OUT, FMT, TYPE, ...)					\
-    fprintf(OUT, "%c" FMT "\t\t" FAKEHOST "\t" FAKEPORT "\r\n", TYPE,	\
-    __VA_ARGS__);
-#define W_ERR(OUT,FMT, ...)	W_FAKEITEM(OUT, FMT, IT_ERROR, __VA_ARGS__)
-#define W_INFO(OUT,FMT, ...)	W_FAKEITEM(OUT, FMT, IT_INFO, __VA_ARGS__)
-#define W_END(OUT)	sendeom(OUT);
+#define sendinfo(OUT, INFO, DETAIL)					\
+	send_info_error((OUT), (IT_INFO), (INFO), (DETAIL))
+#define senderror(OUT, ERROR, DETAIL)					\
+	send_info_error((OUT), (IT_ERROR), (ERROR), (DETAIL))
+
 
 struct item {
 	char type;
-	char *display;
-	char *selector;
-	char *host;
-	char *port;
+	const char *display;
+	const char *selector;
+	const char *host;
+	const char *port;
 };
 
 static void writemenu(struct opt_options *options, const char *selector,
@@ -60,7 +59,9 @@ static char itemtype(const char *path);
 static void writefile(const char *path, FILE *out);
 static int entryselect(const struct dirent *entry);
 static bool checkrights(const char *path, char type);
-static void senditem(struct item *it, FILE *out);
+static void senditem(FILE *out, struct item *it);
+static void send_info_error(FILE *out, char type, const char *info,
+    const char *detail);
 static void sendeom(FILE *out);
 
 int
@@ -74,10 +75,10 @@ main(int argc, char **argv)
 	char request[LINE_MAX];
 	if (fgets(request, sizeof(request), stdin) == NULL) {
 		if (ferror(stdin)) {
-			W_INFO(stdout, "I: %s", "I have a problem reading your "
-			    "request.");
-			W_ERR(stdout, "E: fgets: %s", strerror(errno));
-			W_END(stdout);
+			sendinfo(stdout, "I: I have a problem reading your "
+			    "request.", NULL);
+			senderror(stdout, "E: fgets", strerror(errno));
+			sendeom(stdout);
 			free(options);
 			exit(EXIT_FAILURE);
 		}
@@ -86,9 +87,9 @@ main(int argc, char **argv)
 
 	if (((*request != '/') && (*request != '\0')) ||
 	    ((*request == '/') && (*(request+1) == '.'))) {
-		W_INFO(stdout, "I: %s", "Your request seems to be invalid.");
-		W_ERR(stdout, "E: request: %s", request);
-		W_END(stdout);
+		sendinfo(stdout, "I: Your request seems to be invalid.", NULL);
+		senderror(stdout, "E: request", request);
+		sendeom(stdout);
 		opt_free(options);
 		exit(EXIT_FAILURE);
 	}
@@ -115,9 +116,9 @@ main(int argc, char **argv)
 		break;
 	case IT_IGNORE:
 	default:
-		W_INFO(stdout, "I: %s", "You requested an invalid item.");
-		W_ERR(stdout, "E: request: %s", request);
-		W_END(stdout);
+		sendinfo(stdout, "I: You requested an invalid item.", NULL);
+		senderror(stdout, "E: request", request);
+		sendeom(stdout);
 		free(path);
 		opt_free(options);
 		exit(EXIT_FAILURE);
@@ -139,10 +140,10 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 	struct dirent **dirents;
 	int entries = scandir(dir, &dirents, &entryselect, &alphasort);
 	if (entries == -1) {
-		W_INFO(stdout, "I: I have a problem scanning a directory (%s).",
+		sendinfo(stdout, "I: I have a problem scanning a directory",
 		    dir);
-		W_ERR(stdout, "E: scandir: %s", strerror(errno));
-		W_END(stdout);
+		senderror(stdout, "E: scandir", strerror(errno));
+		sendeom(stdout);
 		free(dirents);
 		exit(EXIT_FAILURE);
 	}
@@ -165,7 +166,7 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 		it.host = opt_get_host(options);
 		it.port = opt_get_port(options);
 
-		senditem(&it, out);
+		senditem(out, &it);
 
 		free(sel);
 		free(path);
@@ -203,9 +204,9 @@ checkrights(const char *path, char type)
 
 	if (access(path, mode) == -1) {
 		if (errno != EACCES) {
-			W_INFO(stdout, "I: I couldn't check access rights for "
-			    "an item (%s).", path);
-			W_ERR(stdout, "E: accesss: %s", strerror(errno));
+			sendinfo(stdout, "I: I couldn't check access rights "
+			    "for an item", path);
+			senderror(stdout, "E: accesss", strerror(errno));
 		}
 		return (false);
 	}
@@ -268,13 +269,45 @@ itemtype(const char *path)
 }
 
 static void
-senditem(struct item *it, FILE *out)
+senditem(FILE *out, struct item *it)
 {
-	assert(it != NULL);
 	assert(out != NULL);
+	assert(it != NULL);
 
 	fprintf(out, "%c%s\t%s\t%s\t%s\r\n", it->type, it->display,
 	    it->selector, it->host, it->port);
+}
+
+static void
+send_info_error(FILE *out, char type, const char *info, const char *detail)
+{
+	assert(out != NULL);
+	assert(info != NULL);
+
+	char *display = malloc(LINE_MAX);
+	if (display == NULL) {
+		/* Explicitely do not use gopherized messages to avoid
+		 * recursions. */
+		fprintf(stderr, "malloc: %s\r\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	if (detail == NULL)
+		strncpy(display, info, LINE_MAX-1);
+	else
+		snprintf(display, LINE_MAX, "%s: %s", info, detail);
+
+	struct item it = {
+		.type = type,
+		.display = display,
+		.selector = "/",
+		.host = FAKEHOST,
+		.port = FAKEPORT
+	};
+
+	senditem(out, &it);
+
+	free(display);
 }
 
 static void
@@ -293,18 +326,17 @@ writefile(const char *path, FILE *out)
 
 	FILE *in = fopen(path, "r");
 	if (in == NULL) {
-		W_INFO(out, "I: I could not open the requested item (%s).",
-		    path);
-		W_ERR(out, "E: fopen: %s", strerror(errno));
-		W_END(stdout);
+		sendinfo(out, "I: I could not open the requested item", path);
+		senderror(out, "E: fopen", strerror(errno));
+		sendeom(stdout);
 		exit(EXIT_FAILURE);
 	}
 
 	void *block = malloc(BINBLOCK);
 	if (block == NULL) {
-		W_INFO(out, "I: %s", "I could not allocate memory.");
-		W_ERR(out, "E: malloc: %s", strerror(errno));
-		W_END(stdout);
+		sendinfo(out, "I: I could not allocate memory.", NULL);
+		senderror(out, "E: malloc", strerror(errno));
+		sendeom(stdout);
 		free(block);
 		exit(EXIT_FAILURE);
 	}
@@ -313,20 +345,20 @@ writefile(const char *path, FILE *out)
 	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
 		size_t w = fwrite(block, 1, r, out);
 		if (w < r) {
-			W_INFO(out, "I: I have a problem writing your "
-			    "requested item (%s).", path);
-			W_ERR(out, "E: fwrite: %s", strerror(errno));
-			W_END(stdout);
+			sendinfo(out, "I: I have a problem writing your "
+			    "requested item", path);
+			senderror(out, "E: fwrite", strerror(errno));
+			sendeom(stdout);
 			free(block);
 			exit(EXIT_FAILURE);
 		}
 		
 		if (r < BINBLOCK) {
 			if (ferror(in)) {
-				W_INFO(out, "I: I have a problem reading your "
-				    "requested item (%s).", path);
-				W_ERR(out, "E: fread: %s", strerror(errno));
-				W_END(stdout);
+				sendinfo(out, "I: I have a problem reading "
+				    "your requested item", path);
+				senderror(out, "E: fread", strerror(errno));
+				sendeom(stdout);
 				free(block);
 				exit(EXIT_FAILURE);
 			}
