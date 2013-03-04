@@ -8,8 +8,10 @@
 #ifndef TOOLS_H
 #define TOOLS_H
 
-char *tool_mimetype(const char *path);
-char *tool_join_path(const char *part1, const char *part2);
+#include <stdio.h>
+
+char *tool_mimetype(const char *path, FILE *out);
+char *tool_join_path(const char *part1, const char *part2, FILE *out);
 void tool_strip_crlf(char *line);
 
 #endif /* !TOOLS_H */

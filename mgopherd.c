@@ -19,50 +19,19 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "itemtypes.h"
 #include "options.h"
+#include "send.h"
 #include "tools.h"
-
-#define FAKEHOST	"fake"
-#define FAKEPORT	"1"
 
 #define BINBLOCK	1024
 
-#define IT_IGNORE	'?'
-#define IT_FILE		'0'
-#define IT_DIR		'1'
-#define IT_ERROR	'3'
-#define IT_ARCHIVE	'5'
-#define IT_BINARY	'9'
-#define IT_GIF		'g'
-#define IT_HTML		'h'
-#define IT_INFO		'i'
-#define IT_IMAGE	'I'
-#define IT_AUDIO	's'
-
-#define send_info(OUT, INFO, DETAIL)					\
-	send_fake_item((OUT), (IT_INFO), (INFO), (DETAIL))
-#define send_error(OUT, ERROR, DETAIL)					\
-	send_fake_item((OUT), (IT_ERROR), (ERROR), (DETAIL))
-
-
-struct item {
-	char type;
-	const char *display;
-	const char *selector;
-	const char *host;
-	const char *port;
-};
-
 static void write_menu(struct opt_options *options, const char *selector,
     FILE *out);
-static char itemtype(const char *path);
+static char itemtype(const char *path, FILE *out);
 static void write_file(const char *path, FILE *out);
 static int entry_select(const struct dirent *entry);
-static bool check_rights(const char *path, char type);
-static void send_item(FILE *out, struct item *it);
-static void send_fake_item(FILE *out, char type, const char *info,
-    const char *detail);
-static void send_eom(FILE *out);
+static bool check_rights(const char *path, char type, FILE *out);
 
 int
 main(int argc, char **argv)
@@ -75,10 +44,11 @@ main(int argc, char **argv)
 	char request[LINE_MAX];
 	if (fgets(request, sizeof(request), stdin) == NULL) {
 		if (ferror(stdin)) {
+			send_error(stdout, "E: fgets", strerror(errno));
 			send_info(stdout, "I: I have a problem reading your "
 			    "request.", NULL);
-			send_error(stdout, "E: fgets", strerror(errno));
 			send_eom(stdout);
+
 			free(options);
 			exit(EXIT_FAILURE);
 		}
@@ -87,9 +57,10 @@ main(int argc, char **argv)
 
 	if (((*request != '/') && (*request != '\0')) ||
 	    ((*request == '/') && (*(request+1) == '.'))) {
-		send_info(stdout, "I: Your request seems to be invalid.", NULL);
 		send_error(stdout, "E: request", request);
+		send_info(stdout, "I: Your request seems to be invalid.", NULL);
 		send_eom(stdout);
+
 		opt_free(options);
 		exit(EXIT_FAILURE);
 	}
@@ -99,9 +70,15 @@ main(int argc, char **argv)
 		request[1] = '\0';
 	}
 
-	char *path = tool_join_path(opt_get_root(options), request);
+	char *path = tool_join_path(opt_get_root(options), request, stdout);
+	if (path == NULL) {
+		send_info(stdout, "I: I could not join path elements.", NULL);
+		send_eom(stdout);
 
-	switch (itemtype(path)){
+		exit(EXIT_FAILURE);
+	}
+
+	switch (itemtype(path, stdout)){
 	case IT_FILE:
 	case IT_ARCHIVE:
 	case IT_BINARY:
@@ -116,9 +93,10 @@ main(int argc, char **argv)
 		break;
 	case IT_IGNORE:
 	default:
-		send_info(stdout, "I: You requested an invalid item.", NULL);
 		send_error(stdout, "E: request", request);
+		send_info(stdout, "I: You requested an invalid item.", NULL);
 		send_eom(stdout);
+
 		free(path);
 		opt_free(options);
 		exit(EXIT_FAILURE);
@@ -135,24 +113,49 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 	assert(selector != NULL);
 	assert(out != NULL);
 
-	char *dir = tool_join_path(opt_get_root(options), selector);
+	char *dir = tool_join_path(opt_get_root(options), selector, out);
+	if (dir == NULL) {
+		send_info(out, "I: I could not join path elements.", NULL);
+		send_eom(stdout);
+
+		exit(EXIT_FAILURE);
+	}
 
 	struct dirent **dirents;
 	int entries = scandir(dir, &dirents, &entry_select, &alphasort);
 	if (entries == -1) {
+		send_error(stdout, "E: scandir", strerror(errno));
 		send_info(stdout, "I: I have a problem scanning a directory",
 		    dir);
-		send_error(stdout, "E: scandir", strerror(errno));
 		send_eom(stdout);
+
 		free(dirents);
 		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < entries; i++) {
 		char *item = dirents[i]->d_name;
-		char *path = tool_join_path(dir, item);
-		char type = itemtype(path);
-		char *sel = tool_join_path(selector, item);
-		if (!check_rights(path, type)) {
+		char *path = tool_join_path(dir, item, out);
+		if (path == NULL) {
+			send_info(out, "I: I could not join path elements.",
+			    NULL);
+			send_eom(out);
+
+			free(dirents[i]);
+			exit(EXIT_FAILURE);
+		}
+		char type = itemtype(path, out);
+		char *sel = tool_join_path(selector, item, out);
+		if (sel == NULL) {
+			send_info(out, "I: I could not join path elements.",
+			    NULL);
+			send_eom(out);
+
+			free(path);
+			free(dirents[i]);
+			exit(EXIT_FAILURE);
+		}
+
+		if (!check_rights(path, type, out)) {
 			free(sel);
 			free(path);
 			free(dirents[i]);
@@ -180,7 +183,7 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 }
 
 static bool
-check_rights(const char *path, char type)
+check_rights(const char *path, char type, FILE *out)
 {
 	assert(path != NULL);
 
@@ -205,9 +208,9 @@ check_rights(const char *path, char type)
 
 	if (access(path, mode) == -1) {
 		if (errno != EACCES) {
-			send_info(stdout, "I: I couldn't check access rights "
+			send_error(out, "E: accesss", strerror(errno));
+			send_info(out, "I: I couldn't check access rights "
 			    "for an item", path);
-			send_error(stdout, "E: accesss", strerror(errno));
 		}
 		return (false);
 	}
@@ -227,20 +230,27 @@ entry_select(const struct dirent *entry)
 }
 
 static char
-itemtype(const char *path)
+itemtype(const char *path, FILE *out)
 {
 	assert(path != NULL);
 
 	struct stat s;
 	if (lstat(path, &s) == -1) {
-		fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
+		send_error(out, "E: lstat", strerror(errno));
+		send_info(out, "I: I could not get file status", path);
 		return (IT_IGNORE);
 	}
 
 	char it;
 	if (S_ISREG(s.st_mode)) {
-		char *mime = tool_mimetype(path);
-		assert(mime != NULL);
+		char *mime = tool_mimetype(path, out);
+		if (mime == NULL) {
+			send_info(out, "I: I could not get mimetype for an "
+			    "item", path);
+			send_eom(out);
+
+			exit(EXIT_FAILURE);
+		}
 
 		if (strcmp(mime, "text/html") == 0)
 			it = IT_HTML;
@@ -270,56 +280,6 @@ itemtype(const char *path)
 }
 
 static void
-send_item(FILE *out, struct item *it)
-{
-	assert(out != NULL);
-	assert(it != NULL);
-
-	fprintf(out, "%c%s\t%s\t%s\t%s\r\n", it->type, it->display,
-	    it->selector, it->host, it->port);
-}
-
-static void
-send_fake_item(FILE *out, char type, const char *info, const char *detail)
-{
-	assert(out != NULL);
-	assert(info != NULL);
-
-	char *display = malloc(LINE_MAX);
-	if (display == NULL) {
-		/* Explicitely do not use gopherized messages to avoid
-		 * recursions. */
-		fprintf(stderr, "malloc: %s\r\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	if (detail == NULL)
-		strncpy(display, info, LINE_MAX-1);
-	else
-		snprintf(display, LINE_MAX, "%s: %s", info, detail);
-
-	struct item it = {
-		.type = type,
-		.display = display,
-		.selector = "/",
-		.host = FAKEHOST,
-		.port = FAKEPORT
-	};
-
-	send_item(out, &it);
-
-	free(display);
-}
-
-static void
-send_eom(FILE *out)
-{
-	assert(out != NULL);
-
-	fputs(".\r\n", out);
-}
-
-static void
 write_file(const char *path, FILE *out)
 {
 	assert(path != NULL);
@@ -327,17 +287,19 @@ write_file(const char *path, FILE *out)
 
 	FILE *in = fopen(path, "r");
 	if (in == NULL) {
-		send_info(out, "I: I could not open the requested item", path);
 		send_error(out, "E: fopen", strerror(errno));
+		send_info(out, "I: I could not open the requested item", path);
 		send_eom(stdout);
+
 		exit(EXIT_FAILURE);
 	}
 
 	void *block = malloc(BINBLOCK);
 	if (block == NULL) {
-		send_info(out, "I: I could not allocate memory.", NULL);
 		send_error(out, "E: malloc", strerror(errno));
+		send_info(out, "I: I could not allocate memory.", NULL);
 		send_eom(stdout);
+
 		free(block);
 		exit(EXIT_FAILURE);
 	}
@@ -346,20 +308,22 @@ write_file(const char *path, FILE *out)
 	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
 		size_t w = fwrite(block, 1, r, out);
 		if (w < r) {
+			send_error(out, "E: fwrite", strerror(errno));
 			send_info(out, "I: I have a problem writing your "
 			    "requested item", path);
-			send_error(out, "E: fwrite", strerror(errno));
 			send_eom(stdout);
+
 			free(block);
 			exit(EXIT_FAILURE);
 		}
 		
 		if (r < BINBLOCK) {
 			if (ferror(in)) {
+				send_error(out, "E: fread", strerror(errno));
 				send_info(out, "I: I have a problem reading "
 				    "your requested item", path);
-				send_error(out, "E: fread", strerror(errno));
 				send_eom(stdout);
+
 				free(block);
 				exit(EXIT_FAILURE);
 			}

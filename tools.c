@@ -15,39 +15,45 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "send.h"
 #include "tools.h"
 
 #define INITIALCAPACITY	32
 
 char *
-tool_mimetype(const char *path)
+tool_mimetype(const char *path, FILE *out)
 {
 	assert(path != NULL);
 
 	magic_t mh = magic_open(MAGIC_MIME_TYPE);
 	if (mh == NULL) {
-		fprintf(stderr, "magic_open: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		send_error(out, "E: magic_open", strerror(errno));
+
+		return (NULL);
 	}
 
 	if (magic_load(mh, NULL) == -1) {
-		fprintf(stderr, "magic_load: %s\n", magic_error(mh));
-		exit(EXIT_FAILURE);
+		send_error(out, "E: magic_load", magic_error(mh));
+
+		magic_close(mh);
+		return (NULL);
 	}
 
 	const char *mime = magic_file(mh, path);
 	if (mime == NULL) {
+		send_error(out, "E: magic_file", magic_error(mh));
+
 		magic_close(mh);
-		fprintf(stderr, "magic_file %s: %s\n", path, magic_error(mh));
-		exit(EXIT_FAILURE);
+		return (NULL);
 	}
 
 	char *ret = strdup(mime);
 	if (ret == NULL)
 	{
+		send_error(out, "E: strdup mime", strerror(errno));
+
 		magic_close(mh);
-		fprintf(stderr, "strdup mime: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		return (NULL);
 	}
 
 	magic_close(mh);
@@ -56,15 +62,16 @@ tool_mimetype(const char *path)
 }
 
 char *
-tool_join_path(const char *part1, const char *part2)
+tool_join_path(const char *part1, const char *part2, FILE *out)
 {
 	assert(part1 != NULL);
 	assert(part2 != NULL);
 
 	char *joined = malloc(PATH_MAX);
 	if (joined == NULL) {
-		fprintf(stderr, "malloc joined: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		send_error(out, "E: malloc joined", strerror(errno));
+
+		return (NULL);
 	}
 
 	char *pj = stpncpy(joined, part1, PATH_MAX);
@@ -81,9 +88,10 @@ tool_join_path(const char *part1, const char *part2)
 	strncpy(pj, p2, rl);
 
 	if (joined[PATH_MAX-1] != '\0') {
+		send_error(out, "E: joinpath: joined too long", NULL);
+
 		free(joined);
-		fputs("joinpath: joined too long\n", stderr);
-		exit(EXIT_FAILURE);
+		return (NULL);
 	}
 
 	return (joined);
