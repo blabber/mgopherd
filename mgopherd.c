@@ -159,12 +159,13 @@ writemenu(struct opt_options *options, const char *selector, FILE *out)
 			continue;
 		}
 
-		struct item it;
-		it.type = type;
-		it.display = item;
-		it.selector = sel;
-		it.host = opt_get_host(options);
-		it.port = opt_get_port(options);
+		struct item it = {
+			.type = type,
+			.display = item,
+			.selector = sel,
+			.host = opt_get_host(options),
+			.port = opt_get_port(options)
+		};
 
 		senditem(out, &it);
 
