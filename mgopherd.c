@@ -48,8 +48,6 @@ main(int argc, char **argv)
 			send_info(stdout, "I: I have a problem reading your "
 			    "request.", NULL);
 			send_eom(stdout);
-
-			free(options);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -60,8 +58,6 @@ main(int argc, char **argv)
 		send_error(stdout, "E: request", request);
 		send_info(stdout, "I: Your request seems to be invalid.", NULL);
 		send_eom(stdout);
-
-		opt_free(options);
 		exit(EXIT_FAILURE);
 	}
 
@@ -74,7 +70,6 @@ main(int argc, char **argv)
 	if (path == NULL) {
 		send_info(stdout, "I: I could not join path elements.", NULL);
 		send_eom(stdout);
-
 		exit(EXIT_FAILURE);
 	}
 
@@ -96,9 +91,6 @@ main(int argc, char **argv)
 		send_error(stdout, "E: request", request);
 		send_info(stdout, "I: You requested an invalid item.", NULL);
 		send_eom(stdout);
-
-		free(path);
-		opt_free(options);
 		exit(EXIT_FAILURE);
 	}
 
@@ -128,8 +120,6 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 		send_info(stdout, "I: I have a problem scanning a directory",
 		    dir);
 		send_eom(stdout);
-
-		free(dirents);
 		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < entries; i++) {
@@ -139,8 +129,6 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 			send_info(out, "I: I could not join path elements.",
 			    NULL);
 			send_eom(out);
-
-			free(dirents[i]);
 			exit(EXIT_FAILURE);
 		}
 		char type = itemtype(path, out);
@@ -149,9 +137,6 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 			send_info(out, "I: I could not join path elements.",
 			    NULL);
 			send_eom(out);
-
-			free(path);
-			free(dirents[i]);
 			exit(EXIT_FAILURE);
 		}
 
@@ -248,7 +233,6 @@ itemtype(const char *path, FILE *out)
 			send_info(out, "I: I could not get mimetype for an "
 			    "item", path);
 			send_eom(out);
-
 			exit(EXIT_FAILURE);
 		}
 
@@ -290,7 +274,6 @@ write_file(const char *path, FILE *out)
 		send_error(out, "E: fopen", strerror(errno));
 		send_info(out, "I: I could not open the requested item", path);
 		send_eom(stdout);
-
 		exit(EXIT_FAILURE);
 	}
 
@@ -299,8 +282,6 @@ write_file(const char *path, FILE *out)
 		send_error(out, "E: malloc", strerror(errno));
 		send_info(out, "I: I could not allocate memory.", NULL);
 		send_eom(stdout);
-
-		free(block);
 		exit(EXIT_FAILURE);
 	}
 
@@ -323,8 +304,6 @@ write_file(const char *path, FILE *out)
 				send_info(out, "I: I have a problem reading "
 				    "your requested item", path);
 				send_eom(stdout);
-
-				free(block);
 				exit(EXIT_FAILURE);
 			}
 			break;

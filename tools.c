@@ -28,22 +28,17 @@ tool_mimetype(const char *path, FILE *out)
 	magic_t mh = magic_open(MAGIC_MIME_TYPE);
 	if (mh == NULL) {
 		send_error(out, "E: magic_open", strerror(errno));
-
 		return (NULL);
 	}
 
 	if (magic_load(mh, NULL) == -1) {
 		send_error(out, "E: magic_load", magic_error(mh));
-
-		magic_close(mh);
 		return (NULL);
 	}
 
 	const char *mime = magic_file(mh, path);
 	if (mime == NULL) {
 		send_error(out, "E: magic_file", magic_error(mh));
-
-		magic_close(mh);
 		return (NULL);
 	}
 
@@ -51,8 +46,6 @@ tool_mimetype(const char *path, FILE *out)
 	if (ret == NULL)
 	{
 		send_error(out, "E: strdup mime", strerror(errno));
-
-		magic_close(mh);
 		return (NULL);
 	}
 
@@ -70,7 +63,6 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 	char *joined = malloc(PATH_MAX);
 	if (joined == NULL) {
 		send_error(out, "E: malloc joined", strerror(errno));
-
 		return (NULL);
 	}
 
@@ -89,8 +81,6 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 
 	if (joined[PATH_MAX-1] != '\0') {
 		send_error(out, "E: joinpath: joined too long", NULL);
-
-		free(joined);
 		return (NULL);
 	}
 
