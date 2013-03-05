@@ -28,25 +28,34 @@ tool_mimetype(const char *path, FILE *out)
 	magic_t mh = magic_open(MAGIC_MIME_TYPE);
 	if (mh == NULL) {
 		send_error(out, "E: magic_open", strerror(errno));
-		return (NULL);
+		send_info(out, "I: I could not open a libmagic handle.", NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
 	}
 
 	if (magic_load(mh, NULL) == -1) {
 		send_error(out, "E: magic_load", magic_error(mh));
-		return (NULL);
+		send_info(out, "I: I could not load the magic database.", NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
 	}
 
 	const char *mime = magic_file(mh, path);
 	if (mime == NULL) {
 		send_error(out, "E: magic_file", magic_error(mh));
-		return (NULL);
+		send_info(out, "I: I could not identify the content of this "
+		    "file", path);
+		send_eom(out);
+		exit(EXIT_FAILURE);
 	}
 
 	char *ret = strdup(mime);
 	if (ret == NULL)
 	{
 		send_error(out, "E: strdup mime", strerror(errno));
-		return (NULL);
+		send_info(out, "I: I could not copy a string", mime);
+		send_eom(out);
+		exit(EXIT_FAILURE);
 	}
 
 	magic_close(mh);
@@ -63,7 +72,9 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 	char *joined = malloc(PATH_MAX);
 	if (joined == NULL) {
 		send_error(out, "E: malloc joined", strerror(errno));
-		return (NULL);
+		send_info(out, "I: I could not join path elements.", NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
 	}
 
 	char *pj = stpncpy(joined, part1, PATH_MAX);
@@ -81,7 +92,9 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 
 	if (joined[PATH_MAX-1] != '\0') {
 		send_error(out, "E: joinpath: joined too long", NULL);
-		return (NULL);
+		send_info(out, "I: A joined path was too long.", NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
 	}
 
 	return (joined);

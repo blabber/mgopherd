@@ -67,11 +67,6 @@ main(int argc, char **argv)
 	}
 
 	char *path = tool_join_path(opt_get_root(options), request, stdout);
-	if (path == NULL) {
-		send_info(stdout, "I: I could not join path elements.", NULL);
-		send_eom(stdout);
-		exit(EXIT_FAILURE);
-	}
 
 	switch (itemtype(path, stdout)){
 	case IT_FILE:
@@ -106,12 +101,6 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 	assert(out != NULL);
 
 	char *dir = tool_join_path(opt_get_root(options), selector, out);
-	if (dir == NULL) {
-		send_info(out, "I: I could not join path elements.", NULL);
-		send_eom(stdout);
-
-		exit(EXIT_FAILURE);
-	}
 
 	struct dirent **dirents;
 	int entries = scandir(dir, &dirents, &entry_select, &alphasort);
@@ -125,20 +114,8 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 	for (int i = 0; i < entries; i++) {
 		char *item = dirents[i]->d_name;
 		char *path = tool_join_path(dir, item, out);
-		if (path == NULL) {
-			send_info(out, "I: I could not join path elements.",
-			    NULL);
-			send_eom(out);
-			exit(EXIT_FAILURE);
-		}
 		char type = itemtype(path, out);
 		char *sel = tool_join_path(selector, item, out);
-		if (sel == NULL) {
-			send_info(out, "I: I could not join path elements.",
-			    NULL);
-			send_eom(out);
-			exit(EXIT_FAILURE);
-		}
 
 		if (!check_rights(path, type, out)) {
 			free(sel);
@@ -229,12 +206,6 @@ itemtype(const char *path, FILE *out)
 	char it;
 	if (S_ISREG(s.st_mode)) {
 		char *mime = tool_mimetype(path, out);
-		if (mime == NULL) {
-			send_info(out, "I: I could not get mimetype for an "
-			    "item", path);
-			send_eom(out);
-			exit(EXIT_FAILURE);
-		}
 
 		if (strcmp(mime, "text/html") == 0)
 			it = IT_HTML;
