@@ -60,7 +60,7 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 	if (display == NULL) {
 		/* Explicitely do not use gopherized messages to avoid
 		 * recursions. */
-		fprintf(stderr, "malloc: %s\r\n", strerror(errno));
+		fprintf(stderr, "malloc: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
