@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -24,6 +25,7 @@
 #include "send.h"
 #include "tools.h"
 
+#define REQUESTREGEX	"^(/|(/[^\\.][^/]*)*)$"
 #define BINBLOCK	1024
 
 static void write_menu(struct opt_options *options, const char *selector,
@@ -32,6 +34,7 @@ static char itemtype(const char *path, FILE *out);
 static void write_file(const char *path, FILE *out);
 static int entry_select(const struct dirent *entry);
 static bool check_rights(const char *path, char type, FILE *out);
+static bool check_request(const char *request, FILE *out);
 
 int
 main(int argc, char **argv)
@@ -53,8 +56,7 @@ main(int argc, char **argv)
 	}
 	tool_strip_crlf(request);
 
-	if (((*request != '/') && (*request != '\0')) ||
-	    ((*request == '/') && (*(request+1) == '.'))) {
+	if (!check_request(request, stdout)) {
 		send_error(stdout, "E: request", request);
 		send_info(stdout, "I: Your request seems to be invalid.", NULL);
 		send_eom(stdout);
@@ -91,6 +93,45 @@ main(int argc, char **argv)
 
 	free(path);
 	opt_free(options);
+}
+
+static bool
+check_request(const char *request, FILE *out)
+{
+	assert(request != NULL);
+
+	bool isvalid = true;
+	regex_t re;
+
+	int ret = regcomp(&re, REQUESTREGEX, REG_EXTENDED | REG_NOSUB);
+	if (ret != 0) {
+		char errbuf[128];
+		regerror(ret, &re, errbuf, sizeof(errbuf));
+		send_error(out, "E: regcomp", errbuf);
+		send_info(out, "I: I could not compile a regular expression.",
+		    NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
+	}
+
+	ret = regexec(&re, request, 0, NULL, 0);
+	if (ret != 0) {
+		if (ret != REG_NOMATCH) {
+			char errbuf[128];
+			regerror(ret, &re, errbuf, sizeof(errbuf));
+			send_error(out, "E: regcomp", errbuf);
+			send_info(out, "I: I could not compile a regular "
+			    "expression.", NULL);
+			send_eom(out);
+			exit(EXIT_FAILURE);
+		}
+
+		isvalid = false;
+	}
+
+	regfree(&re);
+
+	return (isvalid);
 }
 
 static void
