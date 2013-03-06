@@ -31,7 +31,7 @@ send_item(FILE *out, struct item *it)
 }
 
 void
-send_error(FILE *out, const char *info, const char *detail)
+send_error(FILE *out, const char *error, const char *detail)
 {
 	assert(out != NULL);
 	assert(error != NULL);
