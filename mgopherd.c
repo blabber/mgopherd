@@ -285,7 +285,7 @@ write_file(const char *path, FILE *out)
 	if (in == NULL) {
 		send_error(out, "E: fopen", strerror(errno));
 		send_info(out, "I: I could not open the requested item", path);
-		send_eom(stdout);
+		send_eom(out);
 		exit(EXIT_FAILURE);
 	}
 
@@ -293,7 +293,7 @@ write_file(const char *path, FILE *out)
 	if (block == NULL) {
 		send_error(out, "E: malloc", strerror(errno));
 		send_info(out, "I: I could not allocate memory.", NULL);
-		send_eom(stdout);
+		send_eom(out);
 		exit(EXIT_FAILURE);
 	}
 
@@ -304,7 +304,7 @@ write_file(const char *path, FILE *out)
 			send_error(out, "E: fwrite", strerror(errno));
 			send_info(out, "I: I have a problem writing your "
 			    "requested item", path);
-			send_eom(stdout);
+			send_eom(out);
 
 			free(block);
 			exit(EXIT_FAILURE);
@@ -315,7 +315,7 @@ write_file(const char *path, FILE *out)
 				send_error(out, "E: fread", strerror(errno));
 				send_info(out, "I: I have a problem reading "
 				    "your requested item", path);
-				send_eom(stdout);
+				send_eom(out);
 				exit(EXIT_FAILURE);
 			}
 			break;
