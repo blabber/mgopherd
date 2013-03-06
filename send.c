@@ -33,12 +33,18 @@ send_item(FILE *out, struct item *it)
 void
 send_error(FILE *out, const char *info, const char *detail)
 {
-	send_fake_item(out, IT_ERROR, info, detail);
+	assert(out != NULL);
+	assert(error != NULL);
+
+	send_fake_item(out, IT_ERROR, error, detail);
 }
 
 void
 send_info(FILE *out, const char *info, const char *detail)
 {
+	assert(out != NULL);
+	assert(info != NULL);
+
 	send_fake_item(out, IT_INFO, info, detail);
 }
 
