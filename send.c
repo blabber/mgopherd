@@ -49,6 +49,31 @@ send_info(FILE *out, const char *info, const char *detail)
 }
 
 void
+send_line(FILE *out, const char *line)
+{
+	assert(out != NULL);
+	assert(line != NULL);
+
+	/*
+	 * RFC 1436 states the following note for Textfile Entities:
+	 *
+	 *     Lines beginning with periods must be prepended with an extra
+	 *     period to ensure that the transmission is not terminated early.
+	 *     The client should strip extra periods at the beginning of the
+	 *     line.
+	 *
+	 * Nonetheless every tested client (gopher, lynx, OverbiteFF) is not
+	 * stripping leading periods. That is the reason the following lines are
+	 * commented out. If you want a strict RFC compliant server, feel free
+	 * to uncomment these lines.
+	 */
+	// if (*line == '.')
+	// 	fputc('.', out);
+
+	fprintf(out, "%s\r\n", line);
+}
+
+void
 send_eom(FILE *out)
 {
 	assert(out != NULL);

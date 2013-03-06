@@ -22,6 +22,7 @@ struct item {
 void send_item(FILE *_out, struct item *_it);
 void send_error(FILE *_out, const char *_error, const char *_detail);
 void send_info(FILE *_out, const char *_info, const char *_detail);
+void send_line(FILE *_out, const char *_line);
 void send_eom(FILE *_out);
 
 #endif /* !SEND_H */

@@ -31,7 +31,8 @@
 static void write_menu(struct opt_options *options, const char *selector,
     FILE *out);
 static char itemtype(const char *path, FILE *out);
-static void write_file(const char *path, FILE *out);
+static void write_binary_file(const char *path, FILE *out);
+static void write_text_file(const char *path, FILE *out);
 static int entry_select(const struct dirent *entry);
 static bool check_rights(const char *path, char type, FILE *out);
 static bool check_request(const char *request, FILE *out);
@@ -72,13 +73,15 @@ main(int argc, char **argv)
 
 	switch (itemtype(path, stdout)){
 	case IT_FILE:
+		write_text_file(path, stdout);
+		break;
 	case IT_ARCHIVE:
 	case IT_BINARY:
 	case IT_GIF:
 	case IT_HTML:
 	case IT_IMAGE:
 	case IT_AUDIO:
-		write_file(path, stdout);
+		write_binary_file(path, stdout);
 		break;
 	case IT_DIR:
 		write_menu(options, request, stdout);
@@ -276,7 +279,7 @@ itemtype(const char *path, FILE *out)
 }
 
 static void
-write_file(const char *path, FILE *out)
+write_binary_file(const char *path, FILE *out)
 {
 	assert(path != NULL);
 	assert(out != NULL);
@@ -323,4 +326,42 @@ write_file(const char *path, FILE *out)
 	}
 
 	free(block);
+}
+
+static void
+write_text_file(const char *path, FILE *out)
+{
+	assert(path != NULL);
+	assert(out != NULL);
+
+	FILE *in = fopen(path, "r");
+	if (in == NULL) {
+		send_error(out, "E: fopen", strerror(errno));
+		send_info(out, "I: I could not open the requested item", path);
+		send_eom(out);
+		exit(EXIT_FAILURE);
+	}
+
+	void *line = malloc(LINE_MAX);
+	if (line == NULL) {
+		send_error(out, "E: malloc", strerror(errno));
+		send_info(out, "I: I could not allocate memory.", NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
+	}
+
+	while (fgets(line, LINE_MAX, in) != NULL) {
+		tool_strip_crlf(line);
+		send_line(out, line);
+	}
+	if (ferror(stdin)) {
+		send_error(stdout, "E: fgets", strerror(errno));
+		send_info(stdout, "I: I have a problem reading a requested "
+		    "text file", path);
+		send_eom(stdout);
+		exit(EXIT_FAILURE);
+	}
+	send_eom(out);
+
+	free(line);
 }
