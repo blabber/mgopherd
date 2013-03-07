@@ -356,9 +356,9 @@ write_text_file(const char *path, FILE *out)
 	}
 	if (ferror(stdin)) {
 		send_error(stdout, "E: fgets", strerror(errno));
-		send_info(stdout, "I: I have a problem reading a requested "
-		    "text file", path);
-		send_eom(stdout);
+		send_info(out, "I: I have a problem reading a requested text "
+		    "file", path);
+		send_eom(out);
 		exit(EXIT_FAILURE);
 	}
 	send_eom(out);
