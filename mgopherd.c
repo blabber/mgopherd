@@ -25,10 +25,15 @@
 #include "send.h"
 #include "tools.h"
 
+#define GOPHERMAP	"gophermap"
 #define REQUESTREGEX	"^(/|(/[^\\.][^/]*)*)$"
 #define BINBLOCK	1024
 
+static void handle_directory(struct opt_options *options, const char *selector,
+    FILE *out);
 static void write_menu(struct opt_options *options, const char *selector,
+    FILE *out);
+static void write_gophermap(struct opt_options *options, const char *selector,
     FILE *out);
 static char itemtype(const char *path, FILE *out);
 static void write_binary_file(const char *path, FILE *out);
@@ -84,7 +89,7 @@ main(int argc, char **argv)
 		write_binary_file(path, stdout);
 		break;
 	case IT_DIR:
-		write_menu(options, request, stdout);
+		handle_directory(options, request, stdout);
 		break;
 	case IT_IGNORE:
 	default:
@@ -135,6 +140,25 @@ check_request(const char *request, FILE *out)
 	regfree(&re);
 
 	return (isvalid);
+}
+
+static void
+handle_directory(struct opt_options *options, const char *selector, FILE *out)
+{
+	assert(options != NULL);
+	assert(selector != NULL);
+	assert(out != NULL);
+
+	char *path = tool_join_path(opt_get_root(options), selector, out);
+	char *map = tool_join_path(path, GOPHERMAP, out);
+
+	if (check_rights(map, IT_FILE, out))
+		write_gophermap(options, selector, out);
+	else
+		write_menu(options, selector, out);
+
+	free(map);
+	free(path);
 }
 
 static void
@@ -213,7 +237,7 @@ check_rights(const char *path, char type, FILE *out)
 	}
 
 	if (access(path, mode) == -1) {
-		if (errno != EACCES) {
+		if (errno != EACCES && errno != ENOENT) {
 			send_error(out, "E: accesss", strerror(errno));
 			send_info(out, "I: I couldn't check access rights "
 			    "for an item", path);
@@ -364,4 +388,51 @@ write_text_file(const char *path, FILE *out)
 	send_eom(out);
 
 	free(line);
+}
+
+static void
+write_gophermap(struct opt_options *options, const char *selector, FILE *out)
+{
+	assert(options != NULL);
+	assert(selector != NULL);
+	assert(out != NULL);
+
+	char *path = tool_join_path(opt_get_root(options), selector, out);
+	char *map = tool_join_path(path, GOPHERMAP, out);
+
+	FILE *in = fopen(map, "r");
+	if (in == NULL) {
+		send_error(out, "E: fopen", strerror(errno));
+		send_info(out, "I: I could not open a gophermap", map);
+		send_eom(out);
+		exit(EXIT_FAILURE);
+	}
+
+	void *line = malloc(LINE_MAX);
+	if (line == NULL) {
+		send_error(out, "E: malloc", strerror(errno));
+		send_info(out, "I: I could not allocate memory.", NULL);
+		send_eom(out);
+		exit(EXIT_FAILURE);
+	}
+
+	while (fgets(line, LINE_MAX, in) != NULL) {
+		tool_strip_crlf(line);
+		if (strchr(line, '\t') != NULL)
+			send_line(out, line);
+		else
+			send_info(out, line, NULL);
+	}
+	if (ferror(stdin)) {
+		send_error(out, "E: fgets", strerror(errno));
+		send_info(out, "I: I have a problem reading a gophermap",
+		    map);
+		send_eom(out);
+		exit(EXIT_FAILURE);
+	}
+	send_eom(out);
+
+	free(line);
+	free(map);
+	free(path);
 }
