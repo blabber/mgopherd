@@ -174,10 +174,10 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 	struct dirent **dirents;
 	int entries = scandir(dir, &dirents, &entry_select, &alphasort);
 	if (entries == -1) {
-		send_error(stdout, "E: scandir", strerror(errno));
-		send_info(stdout, "I: I have a problem scanning a directory",
+		send_error(out, "E: scandir", strerror(errno));
+		send_info(out, "I: I have a problem scanning a directory",
 		    dir);
-		send_eom(stdout);
+		send_eom(out);
 		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < entries; i++) {
@@ -381,7 +381,7 @@ write_text_file(const char *path, FILE *out)
 		send_line(out, line);
 	}
 	if (ferror(stdin)) {
-		send_error(stdout, "E: fgets", strerror(errno));
+		send_error(out, "E: fgets", strerror(errno));
 		send_info(out, "I: I have a problem reading a requested text "
 		    "file", path);
 		send_eom(out);
