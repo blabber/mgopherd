@@ -107,6 +107,7 @@ static bool
 check_request(const char *request, FILE *out)
 {
 	assert(request != NULL);
+	assert(out != NULL);
 
 	bool isvalid = true;
 	regex_t re;
@@ -216,6 +217,7 @@ static bool
 check_rights(const char *path, char type, FILE *out)
 {
 	assert(path != NULL);
+	assert(out != NULL);
 
 	int mode;
 	switch (type) {

@@ -24,6 +24,7 @@ char *
 tool_mimetype(const char *path, FILE *out)
 {
 	assert(path != NULL);
+	assert(out != NULL);
 
 	magic_t mh = magic_open(MAGIC_MIME_TYPE);
 	if (mh == NULL) {
@@ -68,6 +69,7 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 {
 	assert(part1 != NULL);
 	assert(part2 != NULL);
+	assert(out != NULL);
 
 	char *joined = malloc(PATH_MAX);
 	if (joined == NULL) {
