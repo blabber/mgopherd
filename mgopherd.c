@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include "itemtypes.h"
@@ -458,17 +459,35 @@ write_gophermap(struct opt_options *options, const char *selector, FILE *out)
 			}
 			p++;
 
-			/* TODO: Handle relative selectors in gophermap */
 			l = strcspn(p, "\t");
-			char *sel = malloc(l+1);
-			if (sel == NULL) {
-				send_error(out, "E: malloc", strerror(errno));
-				send_info(out, "I: I could not allocate "
-				    "memory.", NULL);
-				exit(EXIT_FAILURE);
+			bool relative = (l > 0 && *p != '/' &&
+			    strncasecmp(p, "GET ", 4) != 0);
+			char *sel;
+			if (relative) {
+				char *rel = malloc(l+1);
+				if (rel == NULL) {
+					send_error(out, "E: malloc",
+					    strerror(errno));
+					send_info(out, "I: I could not "
+					    "allocate memory.", NULL);
+					exit(EXIT_FAILURE);
+				}
+				strncpy(rel, p, l);
+				rel[l] = '\0';
+				sel = tool_join_path(selector, rel, out);
+				free(rel);
+			} else {
+				sel = malloc(l+1);
+				if (sel == NULL) {
+					send_error(out, "E: malloc",
+					    strerror(errno));
+					send_info(out, "I: I could not "
+					    "allocate memory.", NULL);
+					exit(EXIT_FAILURE);
+				}
+				strncpy(sel, p, l);
+				sel[l] = '\0';
 			}
-			strncpy(sel, p, l);
-			sel[l] = '\0';
 			p += l;
 
 			if (*p != '\0')
