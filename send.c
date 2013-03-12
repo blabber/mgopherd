@@ -100,7 +100,7 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 		snprintf(display, LINE_MAX, "%s: %s", info, detail);
 
 	char *selector = malloc(sizeof(FAKESELECTOR));
-	if (display == NULL) {
+	if (selector == NULL) {
 		/* Explicitely do not use gopherized messages to avoid
 		 * recursions. */
 		fprintf(stderr, "malloc: %s\n", strerror(errno));
@@ -109,7 +109,7 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 	strncpy(selector, FAKESELECTOR, sizeof(FAKESELECTOR));
 
 	char *host = malloc(sizeof(FAKEHOST));
-	if (display == NULL) {
+	if (host == NULL) {
 		/* Explicitely do not use gopherized messages to avoid
 		 * recursions. */
 		fprintf(stderr, "malloc: %s\n", strerror(errno));
@@ -118,13 +118,13 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 	strncpy(host, FAKEHOST, sizeof(FAKEHOST));
 
 	char *port = malloc(sizeof(FAKEPORT));
-	if (display == NULL) {
+	if (port == NULL) {
 		/* Explicitely do not use gopherized messages to avoid
 		 * recursions. */
 		fprintf(stderr, "malloc: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	strncpy(selector, FAKEPORT, sizeof(FAKEPORT));
+	strncpy(port, FAKEPORT, sizeof(FAKEPORT));
 
 	struct item it = {
 		.type = type,
