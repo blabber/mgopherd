@@ -7,6 +7,7 @@ SRCS+=	send.c
 LDADD+=	-lmagic
 
 WARNS?=	6
+CSTD=	c99
 
 NO_MAN=	YES
 
