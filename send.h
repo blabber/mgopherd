@@ -10,13 +10,14 @@
 
 #define FAKEHOST	"fake"
 #define FAKEPORT	"1"
+#define FAKESELECTOR	"/"
 
 struct item {
 	char type;
-	const char *display;
-	const char *selector;
-	const char *host;
-	const char *port;
+	char *display;
+	char *selector;
+	char *host;
+	char *port;
 };
 
 void send_item(FILE *_out, struct item *_it);
