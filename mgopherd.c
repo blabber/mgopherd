@@ -42,6 +42,9 @@ static void write_text_file(const char *path, FILE *out);
 static int entry_select(const struct dirent *entry);
 static bool check_rights(const char *path, char type, FILE *out);
 static bool check_request(const char *request, FILE *out);
+static bool parse_gophermap_item(struct opt_options *options, struct item *item,
+    const char *selector, const char *line, FILE *out);
+static void free_gophermap_item(struct item *item);
 
 int
 main(int argc, char **argv)
@@ -422,130 +425,15 @@ write_gophermap(struct opt_options *options, const char *selector, FILE *out)
 	while (fgets(line, LINE_MAX, in) != NULL) {
 		tool_strip_crlf(line);
 		if (strchr(line, '\t') != NULL) {
-			char *p = line;
-
-			if (*p == '\t') {
-				send_info(out, "I: I encountered a malformed "
-				    "line in a gophermap", map);
-				send_error(out, "E: Malformed line", line);
+			struct item item;
+			if (!parse_gophermap_item(options, &item, selector,
+			    line, out)) {
+				send_info(out, "I: I encountered a problem "
+				    "parsing a gophermap", map);
 				continue;
 			}
-			char type = *p++;
-
-			size_t l = strcspn(p, "\t");
-			if (l == 0) {
-				send_info(out, "I: I encountered a malformed "
-				    "line in a gophermap", map);
-				send_error(out, "E: Malformed line", line);
-				continue;
-			}
-			char *display = malloc(l+1);
-			if (display == NULL) {
-				send_error(out, "E: malloc", strerror(errno));
-				send_info(out, "I: I could not allocate "
-				    "memory.", NULL);
-				exit(EXIT_FAILURE);
-			}
-			strncpy(display, p, l);
-			display[l] = '\0';
-			p += l;
-
-			if (*p == '\0') {
-				send_info(out, "I: I encountered a malformed "
-				    "line in a gophermap", map);
-				send_error(out, "E: Malformed line", line);
-				free(display);
-				continue;
-			}
-			p++;
-
-			l = strcspn(p, "\t");
-			bool relative = (l > 0 && *p != '/' &&
-			    strncasecmp(p, "GET ", 4) != 0);
-			char *sel;
-			if (relative) {
-				char *rel = malloc(l+1);
-				if (rel == NULL) {
-					send_error(out, "E: malloc",
-					    strerror(errno));
-					send_info(out, "I: I could not "
-					    "allocate memory.", NULL);
-					exit(EXIT_FAILURE);
-				}
-				strncpy(rel, p, l);
-				rel[l] = '\0';
-				sel = tool_join_path(selector, rel, out);
-				free(rel);
-			} else {
-				sel = malloc(l+1);
-				if (sel == NULL) {
-					send_error(out, "E: malloc",
-					    strerror(errno));
-					send_info(out, "I: I could not "
-					    "allocate memory.", NULL);
-					exit(EXIT_FAILURE);
-				}
-				strncpy(sel, p, l);
-				sel[l] = '\0';
-			}
-			p += l;
-
-			if (*p != '\0')
-				p++;
-
-			size_t ll = l = strcspn(p, "\t");
-			bool use_default = (l == 0 || (l == 1 && *p == '+'));
-			if (use_default)
-				ll = strlen(opt_get_host(options));
-			char *host = malloc(ll+1);
-			if (host == NULL) {
-				send_error(out, "E: malloc", strerror(errno));
-				send_info(out, "I: I could not allocate "
-				    "memory.", NULL);
-				exit(EXIT_FAILURE);
-			}
-			if (use_default)
-				strncpy(host, opt_get_host(options), ll);
-			else
-				strncpy(host, p, ll);
-			host[ll] = '\0';
-			p += l;
-
-			if (*p != '\0')
-				p++;
-
-			ll = l = strcspn(p, "\t");
-			use_default = (l == 0 || (l == 1 && *p == '+'));
-			if (use_default)
-				ll = strlen(opt_get_port(options));
-			char *port = malloc(ll+1);
-			if (host == NULL) {
-				send_error(out, "E: malloc", strerror(errno));
-				send_info(out, "I: I could not allocate "
-				    "memory.", NULL);
-				exit(EXIT_FAILURE);
-			}
-			strncpy(port, p, l);
-			if (use_default)
-				strncpy(port, opt_get_port(options), ll);
-			else
-				strncpy(port, p, ll);
-			port[ll] = '\0';
-
-			struct item it = {
-				.type = type,
-				.display = display,
-				.selector = sel,
-				.host = host,
-				.port = port
-			};
-
-			send_item(out, &it);
-
-			free(display);
-			free(sel);
-			free(host);
-			free(port);
+			send_item(out, &item);
+			free_gophermap_item(&item);
 		} else
 			send_info(out, line, NULL);
 	}
@@ -561,4 +449,128 @@ write_gophermap(struct opt_options *options, const char *selector, FILE *out)
 	free(line);
 	free(map);
 	free(path);
+}
+
+static bool
+parse_gophermap_item(struct opt_options *options, struct item *item,
+    const char *selector, const char *line, FILE *out)
+{
+	assert(item != NULL);
+	assert(line != NULL);
+	assert(out != NULL);
+
+	const char *p = line;
+
+	if (*p == '\t') {
+		send_error(out, "E: Malformed line", line);
+		return (false);
+	}
+	char type = *p++;
+
+	size_t l = strcspn(p, "\t");
+	if (l == 0) {
+		send_error(out, "E: Malformed line", line);
+		return (false);
+	}
+	char *display = malloc(l+1);
+	if (display == NULL) {
+		send_error(out, "E: malloc", strerror(errno));
+		send_info(out, "I: I could not allocate memory.", NULL);
+		exit(EXIT_FAILURE);
+	}
+	strncpy(display, p, l);
+	display[l] = '\0';
+	p += l;
+
+	if (*p == '\0') {
+		send_error(out, "E: Malformed line", line);
+		free(display);
+		return (false);
+	}
+	p++;
+
+	l = strcspn(p, "\t");
+	bool relative = (l > 0 && *p != '/' && strncasecmp(p, "GET ", 4) != 0);
+	char *sel;
+	if (relative) {
+		char *rel = malloc(l+1);
+		if (rel == NULL) {
+			send_error(out, "E: malloc", strerror(errno));
+			send_info(out, "I: I could not allocate memory.", NULL);
+			exit(EXIT_FAILURE);
+		}
+		strncpy(rel, p, l);
+		rel[l] = '\0';
+		sel = tool_join_path(selector, rel, out);
+		free(rel);
+	} else {
+		sel = malloc(l+1);
+		if (sel == NULL) {
+			send_error(out, "E: malloc", strerror(errno));
+			send_info(out, "I: I could not allocate memory.", NULL);
+			exit(EXIT_FAILURE);
+		}
+		strncpy(sel, p, l);
+		sel[l] = '\0';
+	}
+	p += l;
+
+	if (*p != '\0')
+		p++;
+
+	size_t ll = l = strcspn(p, "\t");
+	bool use_default = (l == 0 || (l == 1 && *p == '+'));
+	if (use_default)
+		ll = strlen(opt_get_host(options));
+	char *host = malloc(ll+1);
+	if (host == NULL) {
+		send_error(out, "E: malloc", strerror(errno));
+		send_info(out, "I: I could not allocate memory.", NULL);
+		exit(EXIT_FAILURE);
+	}
+	if (use_default)
+		strncpy(host, opt_get_host(options), ll);
+	else
+		strncpy(host, p, ll);
+	host[ll] = '\0';
+	p += l;
+
+	if (*p != '\0')
+		p++;
+
+	ll = l = strcspn(p, "\t");
+	use_default = (l == 0 || (l == 1 && *p == '+'));
+	if (use_default)
+		ll = strlen(opt_get_port(options));
+	char *port = malloc(ll+1);
+	if (host == NULL) {
+		send_error(out, "E: malloc", strerror(errno));
+		send_info(out, "I: I could not allocate "
+		    "memory.", NULL);
+		exit(EXIT_FAILURE);
+	}
+	strncpy(port, p, l);
+	if (use_default)
+		strncpy(port, opt_get_port(options), ll);
+	else
+		strncpy(port, p, ll);
+	port[ll] = '\0';
+
+	item->type = type;
+	item->display = display;
+	item->selector = sel;
+	item->host = host;
+	item->port = port;
+
+	return (true);
+}
+
+static void free_gophermap_item(struct item *item)
+{
+	assert(item != NULL);
+
+	free(item->display);
+	free(item->selector);
+	free(item->host);
+	free(item->port);
 }
