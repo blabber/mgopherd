@@ -549,7 +549,6 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 		    "memory.", NULL);
 		exit(EXIT_FAILURE);
 	}
-	strncpy(port, p, l);
 	if (use_default)
 		strncpy(port, opt_get_port(options), ll);
 	else
