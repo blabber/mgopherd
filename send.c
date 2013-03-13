@@ -99,31 +99,13 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 	else
 		snprintf(display, LINE_MAX, "%s: %s", info, detail);
 
-	char *selector = malloc(sizeof(FAKESELECTOR));
-	if (selector == NULL) {
-		/* Explicitely do not use gopherized messages to avoid
-		 * recursions. */
-		fprintf(stderr, "malloc: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	char selector[sizeof(FAKESELECTOR)];
 	strncpy(selector, FAKESELECTOR, sizeof(FAKESELECTOR));
 
-	char *host = malloc(sizeof(FAKEHOST));
-	if (host == NULL) {
-		/* Explicitely do not use gopherized messages to avoid
-		 * recursions. */
-		fprintf(stderr, "malloc: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	char host[sizeof(FAKEHOST)];
 	strncpy(host, FAKEHOST, sizeof(FAKEHOST));
 
-	char *port = malloc(sizeof(FAKEPORT));
-	if (port == NULL) {
-		/* Explicitely do not use gopherized messages to avoid
-		 * recursions. */
-		fprintf(stderr, "malloc: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	char port[sizeof(FAKEPORT)];
 	strncpy(port, FAKEPORT, sizeof(FAKEPORT));
 
 	struct item it = {
@@ -136,8 +118,5 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 
 	send_item(out, &it);
 
-	free(port);
-	free(host);
-	free(selector);
 	free(display);
 }
