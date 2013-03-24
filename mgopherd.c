@@ -30,15 +30,20 @@
 #define REQUESTREGEX	"^(/|(/[^\\.][^/]*)*)$"
 #define BINBLOCK	1024
 
-static void handle_directory(struct opt_options *options, const char *selector,
-    FILE *out);
-static void write_menu(struct opt_options *options, const char *selector,
-    FILE *out);
-static void write_gophermap(struct opt_options *options, const char *selector,
-    FILE *out);
+struct context {
+	const char *selector;
+	const char *path;
+	FILE *out;
+};
+
+static void handle_directory(struct opt_options *options,
+    struct context *context);
+static void write_menu(struct opt_options *options, struct context *context);
+static void write_gophermap(struct opt_options *options,
+    struct context *context, const char *map);
 static char itemtype(const char *path, FILE *out);
-static void write_binary_file(const char *path, FILE *out);
-static void write_text_file(const char *path, FILE *out);
+static void write_binary_file(struct context *context);
+static void write_text_file(struct context *context);
 static int entry_select(const struct dirent *entry);
 static bool check_rights(const char *path, char type, FILE *out);
 static bool check_request(const char *request, FILE *out);
@@ -54,8 +59,15 @@ main(int argc, char **argv)
 	options = opt_parse(argc, argv);
 	assert(options != NULL);
 
-	char request[LINE_MAX];
-	if (fgets(request, sizeof(request), stdin) == NULL) {
+	char *request = malloc(LINE_MAX);
+	if (request == NULL) {
+		send_error(stdout, "E: malloc", strerror(errno));
+		send_info(stdout, "I: I could not allocate memory.", NULL);
+		send_eom(stdout);
+		exit(EXIT_FAILURE);
+	}
+
+	if (fgets(request, LINE_MAX, stdin) == NULL) {
 		if (ferror(stdin)) {
 			send_error(stdout, "E: fgets", strerror(errno));
 			send_info(stdout, "I: I have a problem reading your "
@@ -80,9 +92,15 @@ main(int argc, char **argv)
 
 	char *path = tool_join_path(opt_get_root(options), request, stdout);
 
+	struct context context = {
+		.selector = request,
+		.path = path,
+		.out = stdout
+	};
+
 	switch (itemtype(path, stdout)){
 	case IT_FILE:
-		write_text_file(path, stdout);
+		write_text_file(&context);
 		break;
 	case IT_ARCHIVE:
 	case IT_BINARY:
@@ -90,20 +108,22 @@ main(int argc, char **argv)
 	case IT_HTML:
 	case IT_IMAGE:
 	case IT_AUDIO:
-		write_binary_file(path, stdout);
+		write_binary_file(&context);
 		break;
 	case IT_DIR:
-		handle_directory(options, request, stdout);
+		handle_directory(options, &context);
 		break;
 	case IT_IGNORE:
 	default:
-		send_error(stdout, "E: request", request);
-		send_info(stdout, "I: You requested an invalid item.", NULL);
-		send_eom(stdout);
+		send_error(context.out, "E: request", request);
+		send_info(context.out, "I: You requested an invalid item.",
+		    NULL);
+		send_eom(context.out);
 		exit(EXIT_FAILURE);
 	}
 
 	free(path);
+	free(request);
 	opt_free(options);
 }
 
@@ -148,49 +168,45 @@ check_request(const char *request, FILE *out)
 }
 
 static void
-handle_directory(struct opt_options *options, const char *selector, FILE *out)
+handle_directory(struct opt_options *options, struct context *context)
 {
 	assert(options != NULL);
-	assert(selector != NULL);
-	assert(out != NULL);
+	assert(context != NULL);
 
-	char *path = tool_join_path(opt_get_root(options), selector, out);
-	char *map = tool_join_path(path, GOPHERMAP, out);
+	char *map = tool_join_path(context->path, GOPHERMAP, context->out);
 
-	if (check_rights(map, IT_FILE, out))
-		write_gophermap(options, selector, out);
+	if (check_rights(map, IT_FILE, context->out))
+		write_gophermap(options, context, map);
 	else
-		write_menu(options, selector, out);
+		write_menu(options, context);
 
 	free(map);
-	free(path);
 }
 
 static void
-write_menu(struct opt_options *options, const char *selector, FILE *out)
+write_menu(struct opt_options *options, struct context *context)
 {
 	assert(options != NULL);
-	assert(selector != NULL);
-	assert(out != NULL);
-
-	char *dir = tool_join_path(opt_get_root(options), selector, out);
+	assert(context != NULL);
 
 	struct dirent **dirents;
-	int entries = scandir(dir, &dirents, &entry_select, &alphasort);
+	int entries = scandir(context->path, &dirents, &entry_select,
+	    &alphasort);
 	if (entries == -1) {
-		send_error(out, "E: scandir", strerror(errno));
-		send_info(out, "I: I have a problem scanning a directory",
-		    dir);
-		send_eom(out);
+		send_error(context->out, "E: scandir", strerror(errno));
+		send_info(context->out, "I: I have a problem scanning a "
+		    "directory.", context->path);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < entries; i++) {
 		char *item = dirents[i]->d_name;
-		char *path = tool_join_path(dir, item, out);
-		char type = itemtype(path, out);
-		char *sel = tool_join_path(selector, item, out);
+		char *path = tool_join_path(context->path, item, context->out);
+		char type = itemtype(path, context->out);
+		char *sel = tool_join_path(context->selector, item,
+		    context->out);
 
-		if (!check_rights(path, type, out)) {
+		if (!check_rights(path, type, context->out)) {
 			free(sel);
 			free(path);
 			free(dirents[i]);
@@ -205,16 +221,15 @@ write_menu(struct opt_options *options, const char *selector, FILE *out)
 			.port = opt_get_port(options)
 		};
 
-		send_item(out, &it);
+		send_item(context->out, &it);
 
 		free(sel);
 		free(path);
 		free(dirents[i]);
 	}
-	send_eom(out);
+	send_eom(context->out);
 
 	free(dirents);
-	free(dir);
 }
 
 static bool
@@ -246,7 +261,7 @@ check_rights(const char *path, char type, FILE *out)
 		if (errno != EACCES && errno != ENOENT) {
 			send_error(out, "E: accesss", strerror(errno));
 			send_info(out, "I: I couldn't check access rights "
-			    "for an item", path);
+			    "for an item.", path);
 		}
 		return (false);
 	}
@@ -273,7 +288,7 @@ itemtype(const char *path, FILE *out)
 	struct stat s;
 	if (lstat(path, &s) == -1) {
 		send_error(out, "E: lstat", strerror(errno));
-		send_info(out, "I: I could not get file status", path);
+		send_info(out, "I: I could not get file status.", path);
 		return (IT_IGNORE);
 	}
 
@@ -309,35 +324,36 @@ itemtype(const char *path, FILE *out)
 }
 
 static void
-write_binary_file(const char *path, FILE *out)
+write_binary_file(struct context *context)
 {
-	assert(path != NULL);
-	assert(out != NULL);
+	assert(context != NULL);
 
-	FILE *in = fopen(path, "r");
+	FILE *in = fopen(context->path, "r");
 	if (in == NULL) {
-		send_error(out, "E: fopen", strerror(errno));
-		send_info(out, "I: I could not open the requested item", path);
-		send_eom(out);
+		send_error(context->out, "E: fopen", strerror(errno));
+		send_info(context->out, "I: I could not open the requested "
+		    "item.", context->path);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 
 	void *block = malloc(BINBLOCK);
 	if (block == NULL) {
-		send_error(out, "E: malloc", strerror(errno));
-		send_info(out, "I: I could not allocate memory.", NULL);
-		send_eom(out);
+		send_error(context->out, "E: malloc", strerror(errno));
+		send_info(context->out, "I: I could not allocate memory.",
+		    NULL);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 
 	size_t r;
 	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
-		size_t w = fwrite(block, 1, r, out);
+		size_t w = fwrite(block, 1, r, context->out);
 		if (w < r) {
-			send_error(out, "E: fwrite", strerror(errno));
-			send_info(out, "I: I have a problem writing your "
-			    "requested item", path);
-			send_eom(out);
+			send_error(context->out, "E: fwrite", strerror(errno));
+			send_info(context->out, "I: I have a problem writing "
+			    "your requested item.", context->path);
+			send_eom(context->out);
 
 			free(block);
 			exit(EXIT_FAILURE);
@@ -345,10 +361,12 @@ write_binary_file(const char *path, FILE *out)
 		
 		if (r < BINBLOCK) {
 			if (ferror(in)) {
-				send_error(out, "E: fread", strerror(errno));
-				send_info(out, "I: I have a problem reading "
-				    "your requested item", path);
-				send_eom(out);
+				send_error(context->out, "E: fread",
+				    strerror(errno));
+				send_info(context->out, "I: I have a problem "
+				    "reading your requested item.",
+				    context->path);
+				send_eom(context->out);
 				exit(EXIT_FAILURE);
 			}
 			break;
@@ -359,66 +377,66 @@ write_binary_file(const char *path, FILE *out)
 }
 
 static void
-write_text_file(const char *path, FILE *out)
+write_text_file(struct context *context)
 {
-	assert(path != NULL);
-	assert(out != NULL);
+	assert(context != NULL);
 
-	FILE *in = fopen(path, "r");
+	FILE *in = fopen(context->path, "r");
 	if (in == NULL) {
-		send_error(out, "E: fopen", strerror(errno));
-		send_info(out, "I: I could not open the requested item", path);
-		send_eom(out);
+		send_error(context->out, "E: fopen", strerror(errno));
+		send_info(context->out, "I: I could not open the requested "
+		    "item.", context->path);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 
 	void *line = malloc(LINE_MAX);
 	if (line == NULL) {
-		send_error(out, "E: malloc", strerror(errno));
-		send_info(out, "I: I could not allocate memory.", NULL);
-		send_eom(out);
+		send_error(context->out, "E: malloc", strerror(errno));
+		send_info(context->out, "I: I could not allocate memory.",
+		    NULL);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 
 	while (fgets(line, LINE_MAX, in) != NULL) {
 		tool_strip_crlf(line);
-		send_line(out, line);
+		send_line(context->out, line);
 	}
 	if (ferror(stdin)) {
-		send_error(out, "E: fgets", strerror(errno));
-		send_info(out, "I: I have a problem reading a requested text "
-		    "file", path);
-		send_eom(out);
+		send_error(context->out, "E: fgets", strerror(errno));
+		send_info(context->out, "I: I have a problem reading a "
+		    "requested text file.", context->path);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
-	send_eom(out);
+	send_eom(context->out);
 
 	free(line);
 }
 
 static void
-write_gophermap(struct opt_options *options, const char *selector, FILE *out)
+write_gophermap(struct opt_options *options, struct context *context,
+    const char *map)
 {
 	assert(options != NULL);
-	assert(selector != NULL);
-	assert(out != NULL);
-
-	char *path = tool_join_path(opt_get_root(options), selector, out);
-	char *map = tool_join_path(path, GOPHERMAP, out);
+	assert(context != NULL);
 
 	FILE *in = fopen(map, "r");
 	if (in == NULL) {
-		send_error(out, "E: fopen", strerror(errno));
-		send_info(out, "I: I could not open a gophermap", map);
-		send_eom(out);
+		send_error(context->out, "E: fopen", strerror(errno));
+		send_info(context->out, "I: I could not open a gophermap.",
+		    map);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 
 	void *line = malloc(LINE_MAX);
 	if (line == NULL) {
-		send_error(out, "E: malloc", strerror(errno));
-		send_info(out, "I: I could not allocate memory.", NULL);
-		send_eom(out);
+		send_error(context->out, "E: malloc", strerror(errno));
+		send_info(context->out, "I: I could not allocate memory.",
+		    NULL);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
 
@@ -426,29 +444,27 @@ write_gophermap(struct opt_options *options, const char *selector, FILE *out)
 		tool_strip_crlf(line);
 		if (strchr(line, '\t') != NULL) {
 			struct item item;
-			if (!parse_gophermap_item(options, &item, selector,
-			    line, out)) {
-				send_info(out, "I: I encountered a problem "
-				    "parsing a gophermap", map);
+			if (!parse_gophermap_item(options, &item,
+			    context->selector, line, context->out)) {
+				send_info(context->out, "I: I encountered a "
+				    "problem parsing a gophermap.", map);
 				continue;
 			}
-			send_item(out, &item);
+			send_item(context->out, &item);
 			free_gophermap_item(&item);
 		} else
-			send_info(out, line, NULL);
+			send_info(context->out, line, NULL);
 	}
 	if (ferror(stdin)) {
-		send_error(out, "E: fgets", strerror(errno));
-		send_info(out, "I: I have a problem reading a gophermap",
-		    map);
-		send_eom(out);
+		send_error(context->out, "E: fgets", strerror(errno));
+		send_info(context->out, "I: I have a problem reading a "
+		    "gophermap.", map);
+		send_eom(context->out);
 		exit(EXIT_FAILURE);
 	}
-	send_eom(out);
+	send_eom(context->out);
 
 	free(line);
-	free(map);
-	free(path);
 }
 
 static bool
