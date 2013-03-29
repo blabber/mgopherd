@@ -9,6 +9,4 @@ LDADD+=	-lmagic
 WARNS?=	6
 CSTD=	c99
 
-NO_MAN=	YES
-
 .include <bsd.prog.mk>

@@ -1,0 +1,132 @@
+.Dd March 29, 2013
+.Dt MGOPHERD 1
+.Sh NAME
+.Nm mgopherd
+.Nd "a minimalistic gopher daemon"
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Op Fl r Ar root
+.Op Fl H Ar host
+.Op Fl p Ar port
+.Sh DESCRIPTION
+.Nm
+is a minimalistic gopher daemon based on RFC 1436.
+It currently depends on a
+.Dq super-server
+like
+.Xr inetd 8
+and may not be used as stand-alone daemon.
+It supports basic gophermap files and the following item types:
+.Bl -tag -width "s"
+.It 0
+Item is a file.
+.It 1
+Item is a directory.
+.It 3
+Error message.
+.It 5
+Item is a binary archive of some sort.
+.It 9
+Item is a binary file.
+.It g
+Item is a GIF format graphics file.
+.It h
+Item is a HTML format file.
+.It i
+Informational message.
+.It I
+Item is a graphics file of some sort.
+.It s
+Item is a audio file of some sort.
+.El
+.Pp
+The options are as follows:
+.Bl -tag -width ".Fl r Ar root"
+.It Fl h
+Display a usage message and exit.
+This option overrides all other options.
+.It Fl r Ar root
+.Ar root
+is used as root for the served directory structure.
+.It Fl H Ar host
+.Ar host
+is used as the hostname in directory listings.
+Defaults to the local hostname.
+.It Fl p Ar port
+.Ar port
+is used as the port in directory listings.
+Defaults to 70.
+.El
+.Pp
+.Nm
+serves all items in directories except the special
+.Pa \&.
+and
+.Pa ..
+directories, hidden files and directories or files and directories
+.Nm
+is not allowed to access.
+If a
+.Pa gophermap
+file is present this file is served instead of the default directory listing.
+.Pp
+The rules for
+.Pa gophermap
+files are simple.
+Every line not containing a HT character is send to the client as an
+informational message.
+All lines containing at least one HT character are sent to the client as they
+are.
+This means they have to be valid
+.Sq DirEntities
+according to RFC 1436.
+You may however omit the hostname and the port, or use the placeholder
+.Sq +
+to save you some typing.
+If your selector does not start with the character
+.Sq /
+it is considered to be a relative selector and the selector used to reach the
+.Pa gophermap
+is prepended for your convenience.
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+The following is an example of a typical usage of the
+.Nm
+command in a
+.Xr inetd 8
+configuration:
+.Pp
+.Dl "gopher stream tcp nowait nobody mgopherd mgopherd -r /mygopherhole"
+.Sh DIAGNOSTICS
+The command may fail for several reasons.
+It should send some more or less meaningful error message to the client.
+.Sh COMPATIBILITY
+The
+.Nm
+command has no known compatibility issues.
+.Sh SEE ALSO
+.Xr inetd 8
+.Rs
+.%A "F. Anklesaria"
+.%A "M. McCahill"
+.%A "P. Lindner"
+.%A "D. Johnson"
+.%A "D. Torrey"
+.%A "B. Alberti"
+.%T "The Internet Gopher Protocol"
+.%O RFC1436
+.Re
+.Sh AUTHORS
+This manual page was written by
+.An Tobias Rehbein Aq tobias.rehbein@web.de .
+.Sh BUGS
+According to RFC 1436 lines beginning with periods in
+.Sq Textfile Entities
+should be pretended with an extra period.
+The client is expected to strip periods at the beginning of lines.
+Nonetheless all tested clients are not stripping this periods.
+Because of that
+.Nm
+is violating RFC 1436 and is not prepending extra periods.
