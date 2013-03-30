@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 #include "send.h"
 #include "tools.h"
@@ -28,6 +29,7 @@ tool_mimetype(const char *path, FILE *out)
 
 	magic_t mh = magic_open(MAGIC_MIME_TYPE);
 	if (mh == NULL) {
+		syslog(LOG_ERR, "magic_open error: %m");
 		send_error(out, "E: magic_open", strerror(errno));
 		send_info(out, "I: I could not open a libmagic handle.", NULL);
 		send_eom(out);
@@ -35,6 +37,7 @@ tool_mimetype(const char *path, FILE *out)
 	}
 
 	if (magic_load(mh, NULL) == -1) {
+		syslog(LOG_ERR, "magic_load error: %s", magic_error(mh));
 		send_error(out, "E: magic_load", magic_error(mh));
 		send_info(out, "I: I could not load the magic database.", NULL);
 		send_eom(out);
@@ -43,6 +46,7 @@ tool_mimetype(const char *path, FILE *out)
 
 	const char *mime = magic_file(mh, path);
 	if (mime == NULL) {
+		syslog(LOG_ERR, "magic_file error: %s", magic_error(mh));
 		send_error(out, "E: magic_file", magic_error(mh));
 		send_info(out, "I: I could not identify the content of this "
 		    "file", path);
@@ -53,6 +57,7 @@ tool_mimetype(const char *path, FILE *out)
 	char *ret = strdup(mime);
 	if (ret == NULL)
 	{
+		syslog(LOG_ERR, "strdup error: %m");
 		send_error(out, "E: strdup mime", strerror(errno));
 		send_info(out, "I: I could not copy a string", mime);
 		send_eom(out);
@@ -73,6 +78,7 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 
 	char *joined = malloc(PATH_MAX);
 	if (joined == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(out, "E: malloc joined", strerror(errno));
 		send_info(out, "I: I could not join path elements.", NULL);
 		send_eom(out);
@@ -93,6 +99,8 @@ tool_join_path(const char *part1, const char *part2, FILE *out)
 	strncpy(pj, p2, rl);
 
 	if (joined[PATH_MAX-1] != '\0') {
+		syslog(LOG_ERR, "joinpath too long: \"%s\" + \"%s\"", part1,
+		    part2);
 		send_error(out, "E: joinpath: joined too long", NULL);
 		send_info(out, "I: A joined path was too long.", NULL);
 		send_eom(out);

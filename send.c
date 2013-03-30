@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 #include "itemtypes.h"
 #include "send.h"
@@ -91,6 +92,7 @@ send_fake_item(FILE *out, char type, const char *info, const char *detail)
 	if (display == NULL) {
 		/* Explicitely do not use gopherized messages to avoid
 		 * recursions. */
+		syslog(LOG_ERR, "malloc error: %m");
 		fprintf(stderr, "malloc: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}

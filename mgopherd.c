@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <strings.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include "itemtypes.h"
@@ -54,6 +55,8 @@ static void free_gophermap_item(struct item *item);
 int
 main(int argc, char **argv)
 {
+	openlog("mgopherd", LOG_PID, LOG_USER);
+
 	struct opt_options *options;
 
 	options = opt_parse(argc, argv);
@@ -61,6 +64,7 @@ main(int argc, char **argv)
 
 	char *request = malloc(LINE_MAX);
 	if (request == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(stdout, "E: malloc", strerror(errno));
 		send_info(stdout, "I: I could not allocate memory.", NULL);
 		send_eom(stdout);
@@ -69,6 +73,7 @@ main(int argc, char **argv)
 
 	if (fgets(request, LINE_MAX, stdin) == NULL) {
 		if (ferror(stdin)) {
+			syslog(LOG_ERR, "fgets error: %m");
 			send_error(stdout, "E: fgets", strerror(errno));
 			send_info(stdout, "I: I have a problem reading your "
 			    "request.", NULL);
@@ -79,6 +84,7 @@ main(int argc, char **argv)
 	tool_strip_crlf(request);
 
 	if (!check_request(request, stdout)) {
+		syslog(LOG_NOTICE, "invalid request: \"%s\"", request);
 		send_error(stdout, "E: request", request);
 		send_info(stdout, "I: Your request seems to be invalid.", NULL);
 		send_eom(stdout);
@@ -89,8 +95,10 @@ main(int argc, char **argv)
 		request[0] = '/';
 		request[1] = '\0';
 	}
+	syslog(LOG_INFO, "selector: \"%s\"", request);
 
 	char *path = tool_join_path(opt_get_root(options), request, stdout);
+	syslog(LOG_DEBUG, "path: \"%s\"", path);
 
 	struct context context = {
 		.selector = request,
@@ -100,6 +108,7 @@ main(int argc, char **argv)
 
 	switch (itemtype(context.path, context.out)){
 	case IT_FILE:
+		syslog(LOG_DEBUG, "serving text file");
 		write_text_file(&context);
 		break;
 	case IT_ARCHIVE:
@@ -108,13 +117,16 @@ main(int argc, char **argv)
 	case IT_HTML:
 	case IT_IMAGE:
 	case IT_AUDIO:
+		syslog(LOG_DEBUG, "serving binary file");
 		write_binary_file(&context);
 		break;
 	case IT_DIR:
+		syslog(LOG_DEBUG, "serving directory");
 		handle_directory(options, &context);
 		break;
 	case IT_IGNORE:
 	default:
+		syslog(LOG_NOTICE, "invalid item: \"%s\"", context.path);
 		send_error(context.out, "E: request", request);
 		send_info(context.out, "I: You requested an invalid item.",
 		    NULL);
@@ -125,6 +137,8 @@ main(int argc, char **argv)
 	free(path);
 	free(request);
 	opt_free(options);
+
+	closelog();
 }
 
 static bool
@@ -140,6 +154,7 @@ check_request(const char *request, FILE *out)
 	if (ret != 0) {
 		char errbuf[128];
 		regerror(ret, &re, errbuf, sizeof(errbuf));
+		syslog(LOG_ERR, "regcomp: %s", errbuf);
 		send_error(out, "E: regcomp", errbuf);
 		send_info(out, "I: I could not compile a regular expression.",
 		    NULL);
@@ -152,6 +167,7 @@ check_request(const char *request, FILE *out)
 		if (ret != REG_NOMATCH) {
 			char errbuf[128];
 			regerror(ret, &re, errbuf, sizeof(errbuf));
+			syslog(LOG_ERR, "regexec: %s", errbuf);
 			send_error(out, "E: regcomp", errbuf);
 			send_info(out, "I: I could not compile a regular "
 			    "expression.", NULL);
@@ -193,6 +209,7 @@ write_menu(struct opt_options *options, struct context *context)
 	int entries = scandir(context->path, &dirents, &entry_select,
 	    &alphasort);
 	if (entries == -1) {
+		syslog(LOG_ERR, "scandir error: %m");
 		send_error(context->out, "E: scandir", strerror(errno));
 		send_info(context->out, "I: I have a problem scanning a "
 		    "directory.", context->path);
@@ -207,6 +224,7 @@ write_menu(struct opt_options *options, struct context *context)
 		    context->out);
 
 		if (!check_rights(path, type, context->out)) {
+			syslog(LOG_DEBUG, "missing rights: \"%s\"", path);
 			free(sel);
 			free(path);
 			free(dirents[i]);
@@ -259,6 +277,7 @@ check_rights(const char *path, char type, FILE *out)
 
 	if (access(path, mode) == -1) {
 		if (errno != EACCES && errno != ENOENT) {
+			syslog(LOG_ERR, "access error: %m");
 			send_error(out, "E: accesss", strerror(errno));
 			send_info(out, "I: I couldn't check access rights "
 			    "for an item.", path);
@@ -287,6 +306,7 @@ itemtype(const char *path, FILE *out)
 
 	struct stat s;
 	if (lstat(path, &s) == -1) {
+		syslog(LOG_ERR, "lstat error: %m");
 		send_error(out, "E: lstat", strerror(errno));
 		send_info(out, "I: I could not get file status.", path);
 		return (IT_IGNORE);
@@ -330,6 +350,7 @@ write_binary_file(struct context *context)
 
 	FILE *in = fopen(context->path, "r");
 	if (in == NULL) {
+		syslog(LOG_ERR, "fopen error: %m");
 		send_error(context->out, "E: fopen", strerror(errno));
 		send_info(context->out, "I: I could not open the requested "
 		    "item.", context->path);
@@ -339,6 +360,7 @@ write_binary_file(struct context *context)
 
 	void *block = malloc(BINBLOCK);
 	if (block == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(context->out, "E: malloc", strerror(errno));
 		send_info(context->out, "I: I could not allocate memory.",
 		    NULL);
@@ -350,6 +372,7 @@ write_binary_file(struct context *context)
 	while ((r = fread(block, 1, BINBLOCK, in)) > 0) {
 		size_t w = fwrite(block, 1, r, context->out);
 		if (w < r) {
+			syslog(LOG_ERR, "fwrite error: %m");
 			send_error(context->out, "E: fwrite", strerror(errno));
 			send_info(context->out, "I: I have a problem writing "
 			    "your requested item.", context->path);
@@ -361,6 +384,7 @@ write_binary_file(struct context *context)
 		
 		if (r < BINBLOCK) {
 			if (ferror(in)) {
+				syslog(LOG_ERR, "fread error: %m");
 				send_error(context->out, "E: fread",
 				    strerror(errno));
 				send_info(context->out, "I: I have a problem "
@@ -383,6 +407,7 @@ write_text_file(struct context *context)
 
 	FILE *in = fopen(context->path, "r");
 	if (in == NULL) {
+		syslog(LOG_ERR, "fopen error: %m");
 		send_error(context->out, "E: fopen", strerror(errno));
 		send_info(context->out, "I: I could not open the requested "
 		    "item.", context->path);
@@ -392,6 +417,7 @@ write_text_file(struct context *context)
 
 	void *line = malloc(LINE_MAX);
 	if (line == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(context->out, "E: malloc", strerror(errno));
 		send_info(context->out, "I: I could not allocate memory.",
 		    NULL);
@@ -404,6 +430,7 @@ write_text_file(struct context *context)
 		send_line(context->out, line);
 	}
 	if (ferror(stdin)) {
+		syslog(LOG_ERR, "fgets error: %m");
 		send_error(context->out, "E: fgets", strerror(errno));
 		send_info(context->out, "I: I have a problem reading a "
 		    "requested text file.", context->path);
@@ -424,6 +451,7 @@ write_gophermap(struct opt_options *options, struct context *context,
 
 	FILE *in = fopen(map, "r");
 	if (in == NULL) {
+		syslog(LOG_ERR, "fopen error: %m");
 		send_error(context->out, "E: fopen", strerror(errno));
 		send_info(context->out, "I: I could not open a gophermap.",
 		    map);
@@ -433,6 +461,7 @@ write_gophermap(struct opt_options *options, struct context *context,
 
 	void *line = malloc(LINE_MAX);
 	if (line == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(context->out, "E: malloc", strerror(errno));
 		send_info(context->out, "I: I could not allocate memory.",
 		    NULL);
@@ -456,6 +485,7 @@ write_gophermap(struct opt_options *options, struct context *context,
 			send_info(context->out, line, NULL);
 	}
 	if (ferror(stdin)) {
+		syslog(LOG_ERR, "fgets error: %m");
 		send_error(context->out, "E: fgets", strerror(errno));
 		send_info(context->out, "I: I have a problem reading a "
 		    "gophermap.", map);
@@ -478,6 +508,7 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 	const char *p = line;
 
 	if (*p == '\t') {
+		syslog(LOG_NOTICE, "malformed gophermap line: \"%s\"", line);
 		send_error(out, "E: Malformed line", line);
 		return (false);
 	}
@@ -485,11 +516,13 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 
 	size_t l = strcspn(p, "\t");
 	if (l == 0) {
+		syslog(LOG_NOTICE, "malformed gophermap line: \"%s\"", line);
 		send_error(out, "E: Malformed line", line);
 		return (false);
 	}
 	char *display = malloc(l+1);
 	if (display == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(out, "E: malloc", strerror(errno));
 		send_info(out, "I: I could not allocate memory.", NULL);
 		exit(EXIT_FAILURE);
@@ -499,6 +532,7 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 	p += l;
 
 	if (*p == '\0') {
+		syslog(LOG_NOTICE, "malformed gophermap line: \"%s\"", line);
 		send_error(out, "E: Malformed line", line);
 		free(display);
 		return (false);
@@ -511,6 +545,7 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 	if (relative) {
 		char *rel = malloc(l+1);
 		if (rel == NULL) {
+			syslog(LOG_ERR, "malloc error: %m");
 			send_error(out, "E: malloc", strerror(errno));
 			send_info(out, "I: I could not allocate memory.", NULL);
 			exit(EXIT_FAILURE);
@@ -522,6 +557,7 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 	} else {
 		sel = malloc(l+1);
 		if (sel == NULL) {
+			syslog(LOG_ERR, "malloc error: %m");
 			send_error(out, "E: malloc", strerror(errno));
 			send_info(out, "I: I could not allocate memory.", NULL);
 			exit(EXIT_FAILURE);
@@ -540,6 +576,7 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 		ll = strlen(opt_get_host(options));
 	char *host = malloc(ll+1);
 	if (host == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(out, "E: malloc", strerror(errno));
 		send_info(out, "I: I could not allocate memory.", NULL);
 		exit(EXIT_FAILURE);
@@ -560,6 +597,7 @@ parse_gophermap_item(struct opt_options *options, struct item *item,
 		ll = strlen(opt_get_port(options));
 	char *port = malloc(ll+1);
 	if (host == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		send_error(out, "E: malloc", strerror(errno));
 		send_info(out, "I: I could not allocate "
 		    "memory.", NULL);

@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include "options.h"
@@ -33,6 +34,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 
 	struct opt_options *options = malloc(sizeof(struct opt_options));
 	if (options == NULL) {
+		syslog(LOG_ERR, "malloc error: %m");
 		fprintf(stderr, "malloc options: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
@@ -48,6 +50,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 			free(options->root);
 			options->root = realpath(optarg, NULL);
 			if (options->root == NULL) {
+				syslog(LOG_ERR, "realpath error: %m");
 				fprintf(stderr, "realpath options->root: %s\n",
 				    strerror(errno));
 				exit(EXIT_FAILURE);
@@ -57,6 +60,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 			free(options->host);
 			options->host = strdup(optarg);
 			if (options->host == NULL) {
+				syslog(LOG_ERR, "strdup error: %m");
 				fprintf(stderr, "strdup options->host: %s\n",
 				    strerror(errno));
 				exit(EXIT_FAILURE);
@@ -66,6 +70,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 			free(options->port);
 			options->port = strdup(optarg);
 			if (options->port == NULL) {
+				syslog(LOG_ERR, "strdup error: %m");
 				fprintf(stderr, "strdup options->port: %s\n",
 				    strerror(errno));
 				exit(EXIT_FAILURE);
@@ -75,6 +80,8 @@ struct opt_options *opt_parse(int argc, char **argv)
 			usage();
 			exit(EXIT_SUCCESS);
 		default:
+			syslog(LOG_NOTICE, "unknown option: %s",
+			    argv[optind-1]);
 			usage();
 			exit(EXIT_FAILURE);
 		}
@@ -83,6 +90,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 	if (options->root == NULL) {
 		options->root = realpath(".", NULL);
 		if (options->root == NULL) {
+			syslog(LOG_ERR, "realpath error: %m");
 			fprintf(stderr, "realpath options->root: %s\n",
 			    strerror(errno));
 			exit(EXIT_FAILURE);
@@ -93,6 +101,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 		long hnlen = sysconf(_SC_HOST_NAME_MAX);
 		options->host = malloc(hnlen+1);
 		if (options->host == NULL) {
+			syslog(LOG_ERR, "malloc error: %m");
 			fprintf(stderr, "malloc options->host: %s\n",
 			    strerror(errno));
 			exit(EXIT_FAILURE);
@@ -103,11 +112,16 @@ struct opt_options *opt_parse(int argc, char **argv)
 	if (options->port == NULL) {
 		options->port = strdup(GOPHERPORT);
 		if (options->port == NULL) {
+			syslog(LOG_ERR, "strdup error: %m");
 			fprintf(stderr, "strdup options->port: %s\n",
 			    strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 	}
+
+	syslog(LOG_DEBUG, "options->root: \"%s\"", options->root);
+	syslog(LOG_DEBUG, "options->host: \"%s\"", options->host);
+	syslog(LOG_DEBUG, "options->port: \"%s\"", options->port);
 
 	return (options);
 }
