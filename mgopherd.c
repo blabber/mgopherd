@@ -98,7 +98,7 @@ main(int argc, char **argv)
 		.out = stdout
 	};
 
-	switch (itemtype(path, stdout)){
+	switch (itemtype(context.path, context.out)){
 	case IT_FILE:
 		write_text_file(&context);
 		break;
