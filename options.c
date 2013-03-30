@@ -103,7 +103,7 @@ struct opt_options *opt_parse(int argc, char **argv)
 	if (options->port == NULL) {
 		options->port = strdup(GOPHERPORT);
 		if (options->port == NULL) {
-			fprintf(stderr, "realpath options->port: %s\n",
+			fprintf(stderr, "strdup options->port: %s\n",
 			    strerror(errno));
 			exit(EXIT_FAILURE);
 		}
