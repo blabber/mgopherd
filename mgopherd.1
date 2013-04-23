@@ -102,6 +102,9 @@ configuration:
 .Sh DIAGNOSTICS
 The command may fail for several reasons.
 It should send some more or less meaningful error message to the client.
+.Pp
+.Nm
+will log diagnostic messages using syslog with a facility of LOG_USER.
 .Sh COMPATIBILITY
 The
 .Nm
