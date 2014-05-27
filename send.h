@@ -8,6 +8,8 @@
 #ifndef SEND_H
 #define SEND_H
 
+#include <stdio.h>
+
 #define FAKEHOST	"fake"
 #define FAKEPORT	"1"
 #define FAKESELECTOR	"/"
